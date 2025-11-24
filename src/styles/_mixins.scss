@@ -1,0 +1,159 @@
+/**
+ * SCSS Mixins
+ * Reusable style patterns and utilities
+ */
+
+@use 'variables' as *;
+
+// Responsive Breakpoint Mixins
+@mixin mobile {
+  @media (max-width: 767px) {
+    @content;
+  }
+}
+
+@mixin tablet {
+  @media (min-width: 768px) and (max-width: 1023px) {
+    @content;
+  }
+}
+
+@mixin desktop {
+  @media (min-width: 1024px) {
+    @content;
+  }
+}
+
+@mixin wide {
+  @media (min-width: 1280px) {
+    @content;
+  }
+}
+
+// Mobile-first responsive
+@mixin from-tablet {
+  @media (min-width: 768px) {
+    @content;
+  }
+}
+
+@mixin from-desktop {
+  @media (min-width: 1024px) {
+    @content;
+  }
+}
+
+// Utility Mixins
+@mixin center-flex {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@mixin truncate-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@mixin clear-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@mixin clear-button {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+}
+
+@mixin focus-outline {
+  outline: 2px solid var(--schedule-primary-color);
+  outline-offset: 2px;
+}
+
+@mixin hover-lift {
+  transition: transform $transition-fast, box-shadow $transition-fast;
+  
+  &:hover {
+    transform: translateY(-1px);
+    box-shadow: $shadow-md;
+  }
+}
+
+// Grid Layout Helpers
+@mixin grid-column($column) {
+  grid-column: $column;
+}
+
+@mixin grid-row($start, $end: null) {
+  @if $end {
+    grid-row: #{$start} / #{$end};
+  } @else {
+    grid-row: $start;
+  }
+}
+
+@mixin full-bleed {
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+}
+
+// Text Helpers
+@mixin heading($size: 'base') {
+  font-family: $font-family;
+  font-weight: $font-weight-semibold;
+  line-height: 1.2;
+  color: $color-text-primary;
+  
+  @if $size == 'xl' {
+    font-size: $font-size-xl;
+  } @else if $size == 'lg' {
+    font-size: $font-size-lg;
+  } @else {
+    font-size: $font-size-base;
+  }
+}
+
+@mixin body-text($size: 'base') {
+  font-family: $font-family;
+  font-weight: $font-weight-normal;
+  line-height: 1.5;
+  color: $color-text-primary;
+  
+  @if $size == 'sm' {
+    font-size: $font-size-sm;
+  } @else if $size == 'xs' {
+    font-size: $font-size-xs;
+  } @else {
+    font-size: $font-size-base;
+  }
+}
+
+// Accessibility
+@mixin sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+@mixin not-sr-only {
+  position: static;
+  width: auto;
+  height: auto;
+  padding: 0;
+  margin: 0;
+  overflow: visible;
+  clip: auto;
+  white-space: normal;
+}
+

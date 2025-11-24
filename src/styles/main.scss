@@ -1,0 +1,11 @@
+/**
+ * Main SCSS entry point
+ * Imports all style partials
+ */
+
+@use 'variables';
+@use 'mixins';
+@use 'base';
+@use 'schedule';
+@use 'event';
+

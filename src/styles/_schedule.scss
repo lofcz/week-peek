@@ -1,0 +1,120 @@
+@use 'variables' as *;
+@use 'mixins' as *;
+
+/**
+ * Main schedule grid layout
+ */
+.weekly-schedule {
+  display: grid;
+  grid-template-columns: $time-axis-width repeat(var(--visible-days, 5), 1fr);
+  background: var(--schedule-bg-color, $color-bg);
+  border: 1px solid var(--schedule-grid-line-color, $color-border);
+  border-radius: 8px;
+  overflow: hidden;
+  font-family: var(--schedule-font-family, $font-family);
+  min-width: 0; // Prevent grid overflow
+}
+
+/**
+ * Time axis (vertical labels column)
+ */
+.time-axis {
+  display: grid;
+  grid-template-rows: $day-header-height repeat(var(--time-slots, 8), $time-slot-height);
+  border-right: 1px solid var(--schedule-grid-line-color, $color-border);
+  background: var(--schedule-bg-color, $color-bg-alt);
+}
+
+.time-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: $font-size-sm;
+  color: var(--schedule-time-text-color, $color-text-secondary);
+  border-bottom: 1px solid var(--schedule-grid-line-color, $color-border);
+  padding: 0 $spacing-sm;
+  
+  &--header {
+    background: var(--schedule-bg-color, $color-bg-header);
+    border-bottom: 2px solid var(--schedule-grid-line-color, $color-border);
+  }
+  
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+/**
+ * Days grid container
+ * Spans all day columns (columns 2 through end, after time axis)
+ */
+.days-grid {
+  display: grid;
+  grid-column: 2 / -1; // Span from column 2 (after time axis) to the end
+  grid-template-columns: repeat(var(--visible-days, 5), 1fr);
+  grid-template-rows: $day-header-height repeat(var(--time-slots, 8), $time-slot-height);
+}
+
+/**
+ * Day column
+ */
+.day-column {
+  display: grid;
+  grid-template-rows: $day-header-height repeat(var(--time-slots, 8), $time-slot-height);
+  position: relative;
+  
+  // Remove border from last column's day-events
+  &:last-child .day-events {
+    border-right: none;
+  }
+}
+
+/**
+ * Day header
+ */
+.day-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: $font-weight-semibold;
+  font-size: $font-size-sm;
+  color: var(--schedule-header-text-color, $color-text-primary);
+  background: var(--schedule-bg-color, $color-bg-header);
+  border-bottom: 2px solid var(--schedule-grid-line-color, $color-border);
+  padding: $spacing-sm $spacing-md;
+}
+
+/**
+ * Day events container
+ */
+.day-events {
+  position: relative;
+  grid-row: 2 / -1;
+  display: grid;
+  grid-template-rows: repeat(var(--time-slots, 8), $time-slot-height);
+  grid-template-columns: 1fr;
+  border-right: 1px solid var(--schedule-grid-line-color, $color-border);
+  
+  // Add horizontal grid lines that align perfectly with grid rows
+  // Use a repeating gradient that matches exactly the time-slot-height
+  &::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+    z-index: 0;
+    // Create 1px horizontal lines at the bottom of each time slot
+    // The gradient repeats every time-slot-height
+    background-image: repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent calc($time-slot-height - 1px),
+      var(--schedule-grid-line-color, $color-border) calc($time-slot-height - 1px),
+      var(--schedule-grid-line-color, $color-border) $time-slot-height
+    );
+  }
+}
+

@@ -1,0 +1,85 @@
+/**
+ * Theme Variables
+ * Define colors, spacing, and other design tokens
+ */
+
+// Primary Colors
+$color-primary: #3b82f6;
+$color-primary-hover: #2563eb;
+
+// Neutral Colors
+$color-bg: #ffffff;
+$color-bg-alt: #f9fafb;
+$color-bg-header: #f3f4f6;
+$color-border: #e5e7eb;
+$color-text-primary: #111827;
+$color-text-secondary: #6b7280;
+$color-text-light: #9ca3af;
+
+// Event Colors
+$color-event-text: #ffffff;
+$event-border-radius: 0px;
+$event-padding: 8px;
+$event-min-height: 30px;
+
+// Grid Layout
+$time-axis-width: 60px;
+$day-header-height: 40px;
+$time-slot-height: 60px;
+$grid-gap: 1px;
+
+// Spacing
+$spacing-xs: 2px;
+$spacing-sm: 4px;
+$spacing-md: 8px;
+$spacing-lg: 16px;
+$spacing-xl: 24px;
+
+// Typography
+$font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+$font-size-xs: 0.75rem;   // 12px
+$font-size-sm: 0.875rem;  // 14px
+$font-size-base: 1rem;    // 16px
+$font-size-lg: 1.125rem;  // 18px
+$font-size-xl: 1.25rem;   // 20px
+
+$font-weight-normal: 400;
+$font-weight-medium: 500;
+$font-weight-semibold: 600;
+$font-weight-bold: 700;
+
+// Transitions
+$transition-fast: 0.15s ease;
+$transition-base: 0.2s ease;
+$transition-slow: 0.3s ease;
+
+// Shadows
+$shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+$shadow-md: 0 2px 8px rgba(0, 0, 0, 0.15);
+$shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.2);
+
+// Z-index
+$z-index-base: 1;
+$z-index-dropdown: 10;
+$z-index-overlay: 20;
+$z-index-modal: 30;
+$z-index-tooltip: 40;
+
+// Breakpoints
+$breakpoint-mobile: 320px;
+$breakpoint-tablet: 768px;
+$breakpoint-desktop: 1024px;
+$breakpoint-wide: 1280px;
+
+// CSS Custom Properties (for runtime theming)
+:root {
+  --schedule-primary-color: #{$color-primary};
+  --schedule-bg-color: #{$color-bg};
+  --schedule-grid-line-color: #{$color-border};
+  --schedule-header-text-color: #{$color-text-primary};
+  --schedule-time-text-color: #{$color-text-secondary};
+  --schedule-event-text-color: #{$color-event-text};
+  --schedule-event-border-radius: #{$event-border-radius};
+  --schedule-font-family: #{$font-family};
+}
+

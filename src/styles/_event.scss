@@ -1,0 +1,77 @@
+@use 'variables' as *;
+@use 'mixins' as *;
+
+/**
+ * Event block styling
+ */
+.event {
+  background: var(--schedule-primary-color, $color-primary);
+  color: var(--schedule-event-text-color, $color-event-text);
+  padding: $event-padding;
+  margin: 0px; // No margin - event fills the grid cell
+  border-radius: var(--schedule-event-border-radius, $event-border-radius);
+  overflow: hidden;
+  min-height: $event-min-height;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: flex-start; // Align content to the left
+  text-align: left; // Ensure text is left-aligned
+  box-shadow: $shadow-sm;
+  transition: all $transition-fast;
+  //width: 100%; // Span full width of grid cell
+  //height: 100%; // Fill full height of grid cell
+  box-sizing: border-box; // Include padding in width calculation
+  position: relative;
+  z-index: 1; // Ensure events appear above grid lines
+}
+
+/**
+ * Event title
+ */
+.event-title {
+  font-weight: $font-weight-semibold;
+  font-size: $font-size-sm;
+  margin-bottom: $spacing-xs;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.3;
+  text-align: left; // Ensure title is left-aligned
+  width: 100%; // Take full width for proper ellipsis
+}
+
+/**
+ * Event time
+ */
+.event-time {
+  font-size: $font-size-xs;
+  opacity: 0.9;
+  line-height: 1.2;
+  text-align: left; // Ensure time is left-aligned
+}
+
+/**
+ * Event description (optional)
+ */
+.event-description {
+  font-size: $font-size-xs;
+  opacity: 0.85;
+  margin-top: $spacing-xs;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  text-align: left; // Ensure description is left-aligned
+  width: 100%; // Take full width for proper text wrapping
+}
+
+/**
+ * Overlapping events (for future use)
+ */
+.event--overlapping {
+  // Will be styled in Phase 5
+}
+
