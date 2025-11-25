@@ -5,21 +5,18 @@
  * Main schedule grid layout - 2x2 master grid
  */
 .weekly-schedule {
+  --header-height: $day-header-height;
+  --cross-axis-width: $time-axis-width;
+  
   display: grid;
-  grid-template-columns: $time-axis-width 1fr;
-  grid-template-rows: $day-header-height 1fr;
+  grid-template-columns: var(--cross-axis-width) 1fr;
+  grid-template-rows: var(--header-height) 1fr;
   background: var(--schedule-bg-color, $color-bg);
   border: 1px solid var(--schedule-grid-line-color, $color-border);
   border-radius: 8px;
   overflow: hidden;
   font-family: var(--schedule-font-family, $font-family);
   min-width: 0; // Prevent grid overflow
-  
-  // Horizontal orientation: swap columns and rows
-  &--horizontal {
-    grid-template-columns: $day-axis-width 1fr; // Wider column for day headers
-    grid-template-rows: $time-axis-width 1fr;
-  }
 }
 
 /**
@@ -138,12 +135,6 @@
   grid-template-columns: repeat(var(--num-columns, 5), 1fr);
   grid-template-rows: repeat(var(--num-rows, 8), $time-slot-height);
   position: relative;
-  
-  // Horizontal orientation: swap columns and rows
-  // &--horizontal {
-  //   grid-template-columns: repeat(var(--num-rows, 8), 1fr); // Equal width columns to match time labels
-  //   grid-template-rows: repeat(var(--num-columns, 5), 1fr);
-  // }
   
   // Horizontal grid lines
   &::after {

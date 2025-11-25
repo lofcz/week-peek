@@ -341,17 +341,12 @@ export interface LayoutEvent extends ScheduleEvent {
   /**
    * Grid column index (1-based for CSS Grid)
    */
-  gridColumn: number;
-  
+  gridColumnStart: number;
+
   /**
-   * Column index within overlapping group (0-based)
+   * Grid column end index (1-based for CSS Grid)
    */
-  overlapColumn?: number;
-  
-  /**
-   * Total number of columns in overlapping group
-   */
-  overlapColumnCount?: number;
+  gridColumnEnd: number;
 }
 
 /**
@@ -363,3 +358,11 @@ export interface ValidationError {
   value?: unknown;
 }
 
+export interface AxisConfiguration {
+  headerHeight: string;
+  crossAxisWidth: string;
+  numColumns: number;
+  numRows: number;
+  headerAxisData: string;
+  crossAxisData: string;
+}

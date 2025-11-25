@@ -1,12 +1,13 @@
 import type {
   ScheduleConfig,
-  ScheduleEvent
+  ScheduleEvent,
+  AxisConfiguration
 } from './types';
 import type { Result } from './types/internal';
 import { WORK_WEEK_DAYS, TimeSlotInterval, ScheduleOrientation } from './types';
 import { validateConfig, validateEvent } from './utils/validators';
-import { filterVisibleEvents, calculateEventPosition, timeToGridColumn } from './utils/layoutHelpers';
-import { createTimeLabelsHTML } from './templates/timeAxisTemplate';
+import { filterVisibleEvents, calculateEventPosition } from './utils/layoutHelpers';
+import { createTimeLabelHTML, generateTimeSlots } from './templates/timeAxisTemplate';
 import { createDayHeaderHTML } from './templates/dayColumnTemplate';
 import { createEventHTML } from './templates/eventTemplate';
 import './styles/main.scss';
@@ -103,34 +104,19 @@ export class WeeklySchedule {
   render(): void {
     const visibleEvents = filterVisibleEvents(this.events, this.config.visibleDays!);
     
-    const hours = this.config.endHour! - this.config.startHour! + 1;
-    const slotsPerHour = 60 / this.config.timeSlotInterval!;
-    const totalSlots = hours * slotsPerHour;
-    
-    const isHorizontal = this.config.orientation === ScheduleOrientation.Horizontal;
-    
-    // Swap CSS variables based on orientation
-    // Vertical: columns = days, rows = time slots
-    // Horizontal: columns = time slots, rows = days
-    const numColumns = isHorizontal ? totalSlots : this.config.visibleDays!.length;
-    const numRows = isHorizontal ? this.config.visibleDays!.length : totalSlots;
-    
-    const orientationClass = isHorizontal ? 'weekly-schedule--horizontal' : '';
-    const eventsGridClass = isHorizontal ? 'events-grid--horizontal' : '';
-    
-    // Swap axis order for horizontal orientation
-    const headerAxis = this.createHeaderAxis();
-    const timeAxis = this.createTimeAxis();
-    const axesHTML = isHorizontal ? `${timeAxis}${headerAxis}` : `${headerAxis}${timeAxis}`;
-    
+    const axisConfiguration = this.getAxisConfiguration();
+    const headerAxis = this.createAxis(ScheduleOrientation.Horizontal, axisConfiguration.headerAxisData);
+    const crossAxis = this.createAxis(ScheduleOrientation.Vertical, axisConfiguration.crossAxisData);
+
     const html = `
       <div 
-        class="weekly-schedule ${orientationClass} ${this.config.className!}"
-        style="--num-columns: ${numColumns}; --num-rows: ${numRows};"
+        class="weekly-schedule ${this.config.className!}"
+        style="--num-columns: ${axisConfiguration.numColumns}; --num-rows: ${axisConfiguration.numRows}; --header-height: ${axisConfiguration.headerHeight}; --cross-axis-width: ${axisConfiguration.crossAxisWidth};"
       >
         <div class="schedule-intersection"></div>
-        ${axesHTML}
-        ${this.createEventsGrid(visibleEvents, eventsGridClass)}
+        ${headerAxis}
+        ${crossAxis}
+        ${this.createEventsGrid(visibleEvents)}
       </div>
     `;
 
@@ -138,60 +124,52 @@ export class WeeklySchedule {
     this.attachEventListeners();
   }
 
-  /**
-   * Create header axis HTML (day headers in flex container)
-   * @private
-   */
-  private createHeaderAxis(): string {
-    if (!this.config.showDayHeaders) {
-      const axisClass = this.config.orientation === ScheduleOrientation.Horizontal 
-        ? 'axis-vertical' 
-        : 'axis-horizontal';
-      return `<div class="${axisClass}"></div>`;
+  private getAxisConfiguration(): AxisConfiguration {
+    const isHorizontal = this.config.orientation === ScheduleOrientation.Horizontal;
+    const timeSlots = generateTimeSlots(this.config.startHour!, this.config.endHour!, this.config.timeSlotInterval!);
+    
+    const daysHtml = this.config.visibleDays!.map(day => createDayHeaderHTML(day, this.config.dayNameTranslations)).join('');
+    const timeSlotsHtml = timeSlots.map(time => createTimeLabelHTML(time)).join('');
+  
+    if (isHorizontal) {
+      return {
+        headerHeight: '40px',
+        crossAxisWidth: '100px',
+        numColumns: timeSlots.length,
+        numRows: this.config.visibleDays!.length,
+        headerAxisData: timeSlotsHtml,
+        crossAxisData: daysHtml
+      };
+    } else {
+      return {
+        headerHeight: '40px',
+        crossAxisWidth: '60px',
+        numColumns: this.config.visibleDays!.length,
+        numRows: timeSlots.length,
+        headerAxisData: daysHtml,
+        crossAxisData: timeSlotsHtml
+      };
     }
-    
-    const headers = this.config.visibleDays!
-      .map(day => createDayHeaderHTML(day, this.config.dayNameTranslations))
-      .join('');
-    
-    // Swap axis class based on orientation
-    const axisClass = this.config.orientation === ScheduleOrientation.Horizontal 
-      ? 'axis-vertical' 
-      : 'axis-horizontal';
-    
-    return `<div class="${axisClass}">${headers}</div>`;
   }
 
-  /**
-   * Create time axis HTML (time labels in flex container)
-   * @private
-   */
-  private createTimeAxis(): string {
-    const timeLabels = createTimeLabelsHTML(
-      this.config.startHour!,
-      this.config.endHour!,
-      this.config.timeSlotInterval!
-    );
-    
-    // Swap axis class based on orientation
-    const axisClass = this.config.orientation === ScheduleOrientation.Horizontal 
+  private createAxis(axisDirection: ScheduleOrientation, axisContent: string): string {
+    const axisClass = axisDirection === ScheduleOrientation.Horizontal 
       ? 'axis-horizontal' 
       : 'axis-vertical';
     
-    return `<div class="${axisClass}">${timeLabels}</div>`;
+    return `<div class="${axisClass}">${axisContent}</div>`;
   }
 
   /**
    * Create events grid HTML
    * @private
    */
-  private createEventsGrid(events: ScheduleEvent[], modifierClass: string = ''): string {
+  private createEventsGrid(events: ScheduleEvent[]): string {
     const positionedEvents = events.map(event =>
       this.createPositionedEvent(event)
     ).join('');
     
-    const classAttr = modifierClass ? `class="events-grid ${modifierClass}"` : 'class="events-grid"';
-    return `<div ${classAttr}>${positionedEvents}</div>`;
+    return `<div class="events-grid">${positionedEvents}</div>`;
   }
 
   /**
@@ -209,19 +187,7 @@ export class WeeklySchedule {
 
     const eventHTML = createEventHTML(event);
     
-    // Add grid positioning styles - relative to events grid
-    // For horizontal orientation, we need to calculate column span
-    let gridStyle: string;
-    if (this.config.orientation === ScheduleOrientation.Horizontal) {
-      // Horizontal: grid-column spans time slots, grid-row is day
-      const startCol = layout.gridColumn;
-      const endCol = timeToGridColumn(event.endTime, this.config.startHour!, this.config.timeSlotInterval!);
-      const finalEndCol = Math.max(endCol, startCol + 1);
-      gridStyle = `grid-column: ${startCol} / ${finalEndCol}; grid-row: ${layout.gridRowStart} / ${layout.gridRowEnd};`;
-    } else {
-      // Vertical: grid-column is day, grid-row spans time slots
-      gridStyle = `grid-column: ${layout.gridColumn}; grid-row: ${layout.gridRowStart} / ${layout.gridRowEnd};`;
-    }
+    const gridStyle = `grid-row: ${layout.gridRowStart} / ${layout.gridRowEnd}; grid-column: ${layout.gridColumnStart} / ${layout.gridColumnEnd};`;
     
     if (eventHTML.includes('style="')) {
       return eventHTML.replace(
