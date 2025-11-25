@@ -83,6 +83,14 @@ export enum TimeSlotInterval {
   SixtyMinutes = 60
 }
 
+/**
+ * Schedule orientation: determines axis layout
+ */
+export enum ScheduleOrientation {
+  Vertical = 'vertical',   // Days as columns (default)
+  Horizontal = 'horizontal' // Days as rows
+}
+
 export enum DayOfWeek {
   Monday = 0,
   Tuesday = 1,
@@ -307,6 +315,12 @@ export interface ScheduleConfig {
    * Example: { [DayOfWeek.Monday]: 'Lunes', [DayOfWeek.Tuesday]: 'Martes', ... }
    */
   dayNameTranslations?: DayNameTranslations;
+
+  /**
+   * Schedule orientation: determines whether days are displayed as columns or rows
+   * Default: Vertical (days as columns, time as rows)
+   */
+  orientation?: ScheduleOrientation;
 }
 
 /**

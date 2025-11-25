@@ -1,6 +1,6 @@
 import { WeeklySchedule } from './WeeklySchedule';
 import type { ScheduleEvent } from './types';
-import { DayOfWeek, TimeOnly, Hour, Minute } from './types';
+import { DayOfWeek, TimeOnly, Hour, Minute, ScheduleOrientation } from './types';
 import './style.css';
 
 // Helper function to create events with TimeOnly instances
@@ -52,6 +52,7 @@ const scheduleContainer = document.getElementById('schedule-container')!;
 const result = WeeklySchedule.create(
   scheduleContainer,
   {
+    orientation: ScheduleOrientation.Horizontal,
     visibleDays: [
       DayOfWeek.Monday,
       DayOfWeek.Tuesday,

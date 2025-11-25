@@ -163,6 +163,17 @@ export function validateConfig(config: unknown): Result<void, ValidationError[]>
     });
   }
   
+  // Validate orientation
+  if (c.orientation !== undefined) {
+    if (c.orientation !== 'vertical' && c.orientation !== 'horizontal') {
+      errors.push({
+        field: 'orientation',
+        message: 'orientation must be either "vertical" or "horizontal"',
+        value: c.orientation
+      });
+    }
+  }
+  
   if (errors.length > 0) {
     return { success: false, error: errors };
   }

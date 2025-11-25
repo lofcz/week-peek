@@ -14,6 +14,12 @@
   overflow: hidden;
   font-family: var(--schedule-font-family, $font-family);
   min-width: 0; // Prevent grid overflow
+  
+  // Horizontal orientation: swap columns and rows
+  &--horizontal {
+    grid-template-columns: $day-axis-width 1fr; // Wider column for day headers
+    grid-template-rows: $time-axis-width 1fr;
+  }
 }
 
 /**
@@ -44,7 +50,7 @@
 }
 
 /**
- * Horizontal axis (day headers)
+ * Horizontal axis (day headers or time labels)
  */
 .axis-horizontal {
   display: flex;
@@ -57,6 +63,11 @@
     &:last-child {
       border-right: none;
     }
+  }
+  
+  // For time labels in horizontal orientation, distribute evenly
+  .time-label {
+    flex: 1; // Equal width, fill container
   }
 }
 
@@ -88,8 +99,14 @@
   color: var(--schedule-time-text-color, $color-text-secondary);
   background: var(--schedule-bg-color, $color-bg-alt);
   padding: 0 $spacing-sm;
-  height: $time-slot-height; // Match time slot height
+  height: $time-slot-height; // Match time slot height (vertical orientation)
   flex-shrink: 0; // Prevent shrinking
+  
+  // Horizontal orientation: use width instead of height, flex will handle equal distribution
+  .axis-horizontal & {
+    height: auto;
+    width: auto; // Let flex handle width distribution
+  }
 }
 
 /**
@@ -105,6 +122,11 @@
   background: var(--schedule-bg-color, $color-bg-header);
   padding: $spacing-sm $spacing-md;
   flex: 1;
+  
+  // Horizontal orientation: headers are in vertical axis
+  .axis-vertical & {
+    height: $day-header-height; // Match header height
+  }
 }
 
 /**
@@ -116,6 +138,12 @@
   grid-template-columns: repeat(var(--num-columns, 5), 1fr);
   grid-template-rows: repeat(var(--num-rows, 8), $time-slot-height);
   position: relative;
+  
+  // Horizontal orientation: swap columns and rows
+  // &--horizontal {
+  //   grid-template-columns: repeat(var(--num-rows, 8), 1fr); // Equal width columns to match time labels
+  //   grid-template-rows: repeat(var(--num-columns, 5), 1fr);
+  // }
   
   // Horizontal grid lines
   &::after {
