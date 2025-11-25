@@ -355,10 +355,3 @@ export interface ValidationError {
   value?: unknown;
 }
 
-/**
- * Result of validation
- */
-export type ValidationResult =
-  | { valid: true }
-  | { valid: false; errors: ValidationError[] };
-

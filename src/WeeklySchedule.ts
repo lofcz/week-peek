@@ -2,21 +2,14 @@ import type {
   ScheduleConfig,
   ScheduleEvent
 } from './types';
-import { WORK_WEEK_DAYS, TimeSlotInterval, Hour } from './types';
+import type { Result } from './types/internal';
+import { WORK_WEEK_DAYS, TimeSlotInterval } from './types';
 import { validateConfig, validateEvent } from './utils/validators';
 import { filterVisibleEvents, calculateEventPosition } from './utils/layoutHelpers';
 import { createTimeLabelsHTML } from './templates/timeAxisTemplate';
 import { createDayColumnHTML } from './templates/dayColumnTemplate';
 import { createEventHTML } from './templates/eventTemplate';
 import './styles/main.scss';
-
-/**
- * Result type for operations that can succeed or fail
- * Internal type - not exported to avoid namespace pollution
- */
-type Result<T, E = Error> =
-  | { success: true; data: T }
-  | { success: false; error: E };
 
 /**
  * Weekly Schedule Component
@@ -47,8 +40,8 @@ export class WeeklySchedule {
     }
 
     const configValidation = validateConfig(config);
-    if (!configValidation.valid) {
-      const errorMessages = configValidation.errors.map(e => e.message).join(', ');
+    if (!configValidation.success) {
+      const errorMessages = configValidation.error.map(e => e.message).join(', ');
       return {
         success: false,
         error: new Error(`Invalid configuration: ${errorMessages}`)
@@ -58,8 +51,8 @@ export class WeeklySchedule {
     const eventErrors: string[] = [];
     events.forEach((event, index) => {
       const result = validateEvent(event);
-      if (!result.valid) {
-        result.errors.forEach(err => {
+      if (!result.success) {
+        result.error.forEach(err => {
           eventErrors.push(`events[${index}].${err.field}: ${err.message}`);
         });
       }
@@ -232,8 +225,8 @@ export class WeeklySchedule {
     
     events.forEach((event, index) => {
       const result = validateEvent(event);
-      if (!result.valid) {
-        result.errors.forEach(err => {
+      if (!result.success) {
+        result.error.forEach(err => {
           errors.push(`events[${index}].${err.field}: ${err.message}`);
         });
       }
@@ -267,8 +260,8 @@ export class WeeklySchedule {
     };
 
     const validation = validateConfig(mergedConfig);
-    if (!validation.valid) {
-      const errorMessages = validation.errors.map(e => e.message).join(', ');
+    if (!validation.success) {
+      const errorMessages = validation.error.map(e => e.message).join(', ');
       return {
         success: false,
         error: new Error(`Invalid configuration: ${errorMessages}`)

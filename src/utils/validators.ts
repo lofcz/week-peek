@@ -1,4 +1,5 @@
-import type { DayOfWeek, ScheduleEvent, ScheduleConfig, ValidationError, ValidationResult, TimeOnly } from '../types';
+import type { DayOfWeek, ScheduleEvent, ScheduleConfig, ValidationError, TimeOnly } from '../types';
+import type { Result } from '../types/internal';
 import { DayOfWeek as DayEnum, TimeOnly as TimeOnlyClass } from '../types';
 
 /**
@@ -21,13 +22,13 @@ export function isValidTimeOnly(value: unknown): value is TimeOnly {
 /**
  * Validate a single event object
  */
-export function validateEvent(event: unknown): ValidationResult {
+export function validateEvent(event: unknown): Result<void, ValidationError[]> {
   const errors: ValidationError[] = [];
   
   if (typeof event !== 'object' || event === null) {
     return {
-      valid: false,
-      errors: [{ field: 'event', message: 'Event must be an object' }]
+      success: false,
+      error: [{ field: 'event', message: 'Event must be an object' }]
     };
   }
   
@@ -90,22 +91,22 @@ export function validateEvent(event: unknown): ValidationResult {
   }
   
   if (errors.length > 0) {
-    return { valid: false, errors };
+    return { success: false, error: errors };
   }
   
-  return { valid: true };
+  return { success: true, data: undefined };
 }
 
 /**
  * Validate configuration object
  */
-export function validateConfig(config: unknown): ValidationResult {
+export function validateConfig(config: unknown): Result<void, ValidationError[]> {
   const errors: ValidationError[] = [];
   
   if (typeof config !== 'object' || config === null) {
     return {
-      valid: false,
-      errors: [{ field: 'config', message: 'Config must be an object' }]
+      success: false,
+      error: [{ field: 'config', message: 'Config must be an object' }]
     };
   }
   
@@ -163,9 +164,9 @@ export function validateConfig(config: unknown): ValidationResult {
   }
   
   if (errors.length > 0) {
-    return { valid: false, errors };
+    return { success: false, error: errors };
   }
   
-  return { valid: true };
+  return { success: true, data: undefined };
 }
 
