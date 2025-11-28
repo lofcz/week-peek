@@ -70,9 +70,17 @@ export function calculateEventPosition(
   if (orientation === ScheduleOrientation.Horizontal) {
     const spanSlots = endSlot - startSlot;
     const leftPercent = startOffset * 100;
+    
+    // Calculate actual duration in slots (fractional)
+    const actualDurationInSlots = spanSlots > 0 
+      ? ((1 - startOffset) + (spanSlots - 1) + endOffset)
+      : (endOffset - startOffset);
+    
+    // Width percentage should be relative to the column span, not the entire grid
+    // If event spans 2 columns and has 1.5 slots duration, it should be 75% of those 2 columns
     const widthPercent = spanSlots > 0 
-      ? ((1 - startOffset) + (spanSlots - 1) + endOffset) * 100 
-      : (endOffset - startOffset) * 100;
+      ? (actualDurationInSlots / spanSlots) * 100
+      : actualDurationInSlots * 100;
     
     let topPercent = 0;
     let heightPercent = 100;
