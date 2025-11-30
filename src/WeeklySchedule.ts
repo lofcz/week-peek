@@ -166,8 +166,7 @@ export class WeeklySchedule {
       if (this.zoomedDay === null) {
         return '';
       }
-      const label = getDayName(this.zoomedDay, this.config.dayNameTranslations);
-      return `<button class="zoom-reset-btn" aria-label="Back to week">Back to week</button><span class="zoom-breadcrumb">${label}</span>`;
+      return `<button class="zoom-reset-btn" aria-label="Back to week">Back to week</button>`;
     }
 
 
