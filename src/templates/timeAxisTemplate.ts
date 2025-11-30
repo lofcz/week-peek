@@ -1,8 +1,9 @@
 import { TimeSlotInterval, Hour, TimeOnly } from '../types';
 
 export function createTimeLabelHTML(time: TimeOnly): string {
-  return `<div class="time-label">${time.toString()}</div>`;
+  return `<div class="time-label" data-hours="${time.hours}" data-minutes="${time.minutes}">${time.toString()}</div>`;
 }
+
 
 export function generateTimeSlots(startHour: Hour, endHour: Hour, timeSlotInterval: TimeSlotInterval): TimeOnly[] {
   const slots: TimeOnly[] = [];
