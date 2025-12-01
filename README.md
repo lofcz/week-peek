@@ -1,167 +1,66 @@
-# Weekly Schedule Component
+# Week Peek
 
-A lightweight, reusable weekly schedule view component built with vanilla TypeScript, Vite, and SCSS. Display recurring weekly events with a clean, responsive grid layout.
-
-## Features
-
-- ✨ Generic weekly schedule template (not date-specific)
-- 📅 Configurable visible days (work week Mon-Fri or custom)
-- ⏰ Flexible time range configuration
-- 🎯 Event click detection with callbacks
-- 🌍 Localization/i18n support (day name translations)
-- 📱 Fully responsive (320px - 1920px)
-- 🎨 Customizable theme via CSS variables
-- 🚀 Zero runtime dependencies
-- 📦 Tiny bundle size (<20KB gzipped)
-- 🔧 TypeScript with strict mode
+Simple weekly schedule component with zoomable days and minimal dependencies.
 
 ## Quick Start
 
-### Prerequisites
+1) Install and run the dev server
 
-- Node.js 18+ (LTS)
-- npm or pnpm
-
-### Installation & Setup
-
-```bash
-# Install dependencies
+```pwsh
 npm install
-
-# Start development server
 npm run dev
+```
 
-# Build for production
+2) Open the local URL printed by Vite and resize to see mobile/desktop.
+
+## Usage (Embed)
+
+```ts
+import { WeeklySchedule } from './src/WeeklySchedule';
+import { DayOfWeek, TimeOnly } from './src/types';
+
+const container = document.getElementById('app')!;
+const schedule = WeeklySchedule.create(container, {
+  visibleDays: [
+    DayOfWeek.Monday,
+    DayOfWeek.Tuesday,
+    DayOfWeek.Wednesday,
+    DayOfWeek.Thursday,
+    DayOfWeek.Friday,
+  ],
+  startHour: 9,
+  endHour: 17,
+}, [
+  {
+    id: 'evt-1',
+    day: DayOfWeek.Monday,
+    title: 'Standup',
+    startTime: new TimeOnly(9, 0),
+    endTime: new TimeOnly(9, 30),
+  },
+]);
+
+if (!schedule.success) {
+  console.error(schedule.error);
+}
+```
+
+Ensure your container controls sizing. The component fills its container (width/height via CSS), and switches to mobile layout below the breakpoint.
+
+## Features
+
+- Minimal dependencies: vanilla TypeScript + Sass (plus Floating UI for tooltips); built with Vite
+- Mobile-first responsive design: adapts cleanly from phone to desktop
+- Zoomable days: click a day header to focus that day
+
+## Build
+
+```pwsh
 npm run build
 ```
 
-### Development Server
-
-The development server will start at `http://localhost:5173`
-
-## Project Structure
-
-```
-src/
-├── WeeklySchedule.ts         # Main component class
-├── types/
-│   └── index.ts              # TypeScript interfaces
-├── templates/
-│   ├── eventTemplate.ts      # Event HTML generation
-│   ├── dayColumnTemplate.ts  # Day column generation
-│   └── timeAxisTemplate.ts   # Time labels generation
-├── utils/
-│   ├── timeHelpers.ts        # Time parsing & formatting
-│   ├── layoutHelpers.ts      # Event positioning logic
-│   └── validators.ts         # Input validation
-├── styles/
-│   ├── main.scss             # Main styles entry
-│   ├── _variables.scss       # Theme variables
-│   ├── _mixins.scss          # Responsive mixins
-│   ├── _schedule.scss        # Schedule grid styles
-│   └── _event.scss           # Event styles
-└── main.ts                   # Demo entry point
-```
-
-## Tech Stack
-
-- **Build Tool**: Vite 5.x
-- **Language**: TypeScript 5.x (strict mode)
-- **Styling**: SCSS/Sass
-- **Template System**: Template literal functions
-- **Layout**: CSS Grid
-- **Runtime**: Zero dependencies
-
-## Usage Example (Coming Soon)
-
-```typescript
-import { WeeklySchedule } from './WeeklySchedule';
-import { DayOfWeek } from './types';
-
-const schedule = new WeeklySchedule(
-  document.getElementById('container'),
-  {
-    events: [
-      {
-        id: '1',
-        day: DayOfWeek.Monday,
-        startTime: '10:00',
-        endTime: '11:00',
-        title: 'Team Meeting'
-      }
-    ],
-    visibleDays: [
-      DayOfWeek.Monday,
-      DayOfWeek.Tuesday,
-      DayOfWeek.Wednesday,
-      DayOfWeek.Thursday,
-      DayOfWeek.Friday
-    ],
-    onEventClick: (event) => console.log('Clicked:', event)
-  }
-);
-```
-
-### Localization Example
-
-```typescript
-import { DayOfWeek } from './types';
-
-// Spanish day names
-const schedule = new WeeklySchedule(container, {
-  events: [...],
-  dayNameTranslations: {
-    [DayOfWeek.Monday]: 'Lunes',
-    [DayOfWeek.Tuesday]: 'Martes',
-    [DayOfWeek.Wednesday]: 'Miércoles',
-    [DayOfWeek.Thursday]: 'Jueves',
-    [DayOfWeek.Friday]: 'Viernes',
-    [DayOfWeek.Saturday]: 'Sábado',
-    [DayOfWeek.Sunday]: 'Domingo'
-  }
-});
-```
-
-## Documentation
-
-- [Feature Specification](./specs/001-weekly-calendar/spec.md)
-- [Technical Plan](./specs/001-weekly-calendar/plan.md)
-- [Quick Start Guide](./specs/001-weekly-calendar/quickstart.md)
-- [Data Model](./specs/001-weekly-calendar/data-model.md)
-- [API Reference](./specs/001-weekly-calendar/contracts/component-api.md)
-
-## Development Status
-
-🚧 **In Development** - Phase 1 & 2 (Setup & Foundation) in progress
-
-- [x] Project setup
-- [ ] Core type definitions
-- [ ] Template system
-- [ ] Component implementation
-- [ ] Event handling
-- [ ] Responsive design
-- [ ] Documentation
-
-## Constitutional Principles
-
-This project follows strict engineering principles:
-
-1. **Code Simplicity**: Straightforward solutions over clever abstractions
-2. **Readability First**: Clear, self-documenting code
-3. **Testability**: Designed for testing with pure functions
-4. **Performance Conscious**: Optimize with data, not speculation
-
-See [Project Constitution](./specify/memory/constitution.md) for details.
+Outputs a production build via Vite.
 
 ## License
 
-MIT (or your preferred license)
-
-## Contributing
-
-Contributions welcome! Please follow the project's constitutional principles and coding standards.
-
----
-
-Built with ❤️ using Vite + TypeScript + SCSS
-
+MIT
