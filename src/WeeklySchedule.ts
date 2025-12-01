@@ -26,6 +26,7 @@ export class WeeklySchedule {
   private allEvents: ScheduleEvent[];
    private originalVisibleDays: DayOfWeek[];
    private zoomedDay: DayOfWeek | null = null;
+  private pendingScrollTargetId: string | null = null;
 
 
 
@@ -193,6 +194,30 @@ export class WeeklySchedule {
 
 
     this.container.innerHTML = html;
+
+    // If zoomed to a single day, scroll to earliest event for that day
+    if (this.zoomedDay !== null) {
+      // Prefer pending specific target if set (e.g., from overflow click)
+      if (this.pendingScrollTargetId) {
+        const targetEl = this.container.querySelector<HTMLElement>(`.events-grid .event[data-event-id="${this.pendingScrollTargetId}"]`);
+        if (targetEl) {
+          setTimeout(() => this.scrollToElementInScroll(targetEl), 0);
+        }
+        this.pendingScrollTargetId = null;
+      } else {
+        const day = this.zoomedDay;
+        const dayEvents = this.events
+          .filter(ev => ev.day === day)
+          .sort((a, b) => a.startTime.toMinutes() - b.startTime.toMinutes());
+        if (dayEvents.length > 0) {
+          const firstId = String(dayEvents[0].id);
+          const firstEl = this.container.querySelector<HTMLElement>(`.events-grid .event[data-event-id="${firstId}"]`);
+          if (firstEl) {
+            setTimeout(() => this.scrollToElementInScroll(firstEl), 0);
+          }
+        }
+      }
+    }
   }
 
     private renderIntersection(): string {
@@ -419,21 +444,19 @@ export class WeeklySchedule {
          return;
        }
 
-       // Overflow indicator triggers zoom to its day
-       if (eventEl.classList.contains('event-overflow-indicator')) {
-         const day = this.zoomedDay ?? null;
-         if (day !== null) {
-           this.resetZoom();
-         } else {
-           const id = eventEl.getAttribute('data-event-id') || '';
-           const parts = id.split('-');
-           const dayNum = Number(parts[1]);
-           if (!isNaN(dayNum)) {
-             this.zoomToDay(dayNum as DayOfWeek);
-           }
-         }
-         return;
-       }
+      // Overflow indicator: zoom to that day and scroll to the cluster's first event
+      if (eventEl.classList.contains('event-overflow-indicator')) {
+        const id = eventEl.getAttribute('data-event-id') || '';
+        const parts = id.split('-');
+        const dayNum = Number(parts[1]);
+        const earliestId = parts.slice(2).join('-');
+        if (!isNaN(dayNum)) {
+          // Set pending scroll to the earliest event in the cluster after zoom
+          this.pendingScrollTargetId = earliestId || null;
+          this.zoomToDay(dayNum as DayOfWeek);
+        }
+        return;
+      }
 
        const eventId = eventEl.getAttribute('data-event-id');
        const scheduleEvent = this.events.find(ev => ev.id === eventId);
@@ -448,6 +471,27 @@ export class WeeklySchedule {
        });
        this.container.dispatchEvent(customEvent);
     });
+  }
+
+  /**
+   * Scroll the schedule scroll container to make the element visible.
+   */
+  private scrollToElementInScroll(el: HTMLElement): void {
+    if (!el) return;
+    const root = this.container.querySelector('.weekly-schedule');
+    const scroll = root?.querySelector<HTMLElement>('.schedule-scroll');
+    if (!scroll) return;
+
+    const elRect = el.getBoundingClientRect();
+    const scrollRect = scroll.getBoundingClientRect();
+    const offsetTop = elRect.top - scrollRect.top + scroll.scrollTop;
+    const offsetLeft = elRect.left - scrollRect.left + scroll.scrollLeft;
+
+    if (this.config.orientation === ScheduleOrientation.Vertical) {
+      scroll.scrollTop = Math.max(0, Math.floor(offsetTop));
+    } else {
+      scroll.scrollLeft = Math.max(0, Math.floor(offsetLeft));
+    }
   }
 
 
