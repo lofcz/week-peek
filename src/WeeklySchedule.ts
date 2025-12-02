@@ -244,12 +244,13 @@ export class WeeklySchedule {
   }
 
     private renderIntersection(): string {
-      if (this.zoomedDay === null) {
-        const iconClass = this.config.icons?.className ? this.config.icons.className : '';
-        const ctaIcon = this.config.icons?.cta ?? '🔍';
-        return `<div class="zoom-hint" aria-live="polite"><span class="zoom-hint-icon ${iconClass}" aria-hidden="true">${ctaIcon}</span></div>`;
-      }
-      return `<button class="zoom-reset-btn" aria-label="Back to week">Back to week</button>`;
+      return ""; // disable intersection area for now
+      // if (this.zoomedDay === null) {
+      //   const iconClass = this.config.icons?.className ? this.config.icons.className : '';
+      //   const ctaIcon = this.config.icons?.cta ?? '🔍';
+      //   return `<div class="zoom-hint" aria-live="polite"><span class="zoom-hint-icon ${iconClass}" aria-hidden="true">${ctaIcon}</span></div>`;
+      // }
+      // return `<button class="zoom-reset-btn" aria-label="Back to week">Back to week</button>`;
     }
 
   private getAxisConfiguration(): AxisConfiguration {
