@@ -31,7 +31,7 @@ const events = [
   { id: '5f', day: DayOfWeek.Thursday, title: 'QA Sync', startTime: new TimeOnly(15, 20), endTime: new TimeOnly(16, 20), description: 'Another overlap', color: '#0ea5e9' },
 
   // Friday
-  { id: '6', day: DayOfWeek.Friday, title: 'Retro', startTime: new TimeOnly(15, 0), endTime: new TimeOnly(16, 0), description: 'Sprint retrospective', color: '#ec4899' },
+  { id: '6', day: DayOfWeek.Friday, title: 'Retro', startTime: new TimeOnly(16, 15), endTime: new TimeOnly(18, 15), description: 'Sprint retrospective', color: '#ec4899' },
 ];
 
 const container = document.getElementById('schedule-container')!;
