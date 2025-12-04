@@ -392,8 +392,8 @@ export class WeeklySchedule {
     );
 
     const eventHTML = this.config.orientation === ScheduleOrientation.Horizontal
-      ? createEventHTMLHorizontal(event, laneInfo)
-      : createEventHTML(event, laneInfo);
+      ? createEventHTMLHorizontal(event, laneInfo, this.config.renderEvent)
+      : createEventHTML(event, laneInfo, this.config.renderEvent);
 
     // Base grid positioning (integer cell positions)
     const gridStyle = `grid-row: ${layout.gridRowStart} / ${layout.gridRowEnd}; grid-column: ${layout.gridColumnStart} / ${layout.gridColumnEnd};`;

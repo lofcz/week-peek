@@ -63,10 +63,10 @@ export function calculateEventPosition(
     end: dayIndex + 2
   };
 
-   
+  const startSlot = timeToSlotIndex(event.startTime, startHour, timeSlotInterval);
+
   // Always span exactly one slot for the time axis
   // Sizing and positioning will be handled by absolute positioning relative to this single slot
-  const startSlot = timeToSlotIndex(event.startTime, startHour, timeSlotInterval);
   const timeSpan: SpanRange = {
     start: startSlot + 1,
     end: startSlot + 2 

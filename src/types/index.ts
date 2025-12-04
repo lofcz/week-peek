@@ -191,8 +191,16 @@ export interface ScheduleEvent {
    * Optional background color for the event
    * Can be any valid CSS color value
    * Default: component theme primary color
+   * @deprecated Use `style` property for more flexible styling
    */
   color?: string;
+
+  /**
+   * Optional inline CSS styles for the event element
+   * Can be any valid CSS string (e.g., "background: red; border: 1px solid black;")
+   * If provided, this takes precedence over `color`
+   */
+  style?: string;
 
   /**
    * Optional CSS class name(s) to apply to event element
@@ -205,7 +213,10 @@ export interface ScheduleEvent {
   metadata?: Record<string, unknown>;
 }
 
-
+export interface RenderContext {
+  laneInfo?: LaneInfo,
+  orientation: ScheduleOrientation,
+}
 
 /**
  * Configuration options for the WeeklySchedule component
@@ -258,6 +269,8 @@ export interface ScheduleConfig {
    * Icon configuration (replaces previous separate iconClass + icons fields)
    */
   icons?: IconConfig;
+
+  renderEvent?: (event: ScheduleEvent, context: RenderContext) => string;
 }
 
 /**
