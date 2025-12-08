@@ -3,7 +3,8 @@ import type {
   ScheduleEvent,
   AxisConfiguration,
   LaneInfo,
-  DayOfWeek
+  DayOfWeek,
+  RenderContext
 } from './types';
 import type { Result } from './types/internal';
 import { WORK_WEEK_DAYS, TimeSlotInterval, ScheduleOrientation, TimeOnly, IconConfig, getDayName } from './types';
@@ -398,11 +399,14 @@ export class WeeklySchedule {
     );
 
     const isOverflowIndicator = event.className?.includes('event-overflow-indicator');
+    const renderContext: RenderContext = { 
+      laneInfo, 
+      orientation: this.config.orientation!, 
+      isZoomed: this.zoomedDay !== null 
+    };
     const eventHTML = isOverflowIndicator 
     ? createOverflowIndicatorHTML(event, laneInfo) 
-    : this.config.orientation === ScheduleOrientation.Horizontal
-      ? createEventHTMLHorizontal(event, laneInfo, this.config.renderEvent)
-      : createEventHTML(event, laneInfo, this.config.renderEvent);
+    : createEventHTML(event, renderContext);
 
     // Base grid positioning (integer cell positions)
     const gridStyle = `grid-row: ${layout.gridRowStart} / ${layout.gridRowEnd}; grid-column: ${layout.gridColumnStart} / ${layout.gridColumnEnd};`;

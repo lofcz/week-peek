@@ -188,14 +188,6 @@ export interface ScheduleEvent {
   description?: string;
 
   /**
-   * Optional background color for the event
-   * Can be any valid CSS color value
-   * Default: component theme primary color
-   * @deprecated Use `style` property for more flexible styling
-   */
-  color?: string;
-
-  /**
    * Optional inline CSS styles for the event element
    * Can be any valid CSS string (e.g., "background: red; border: 1px solid black;")
    * If provided, this takes precedence over `color`
@@ -216,6 +208,12 @@ export interface ScheduleEvent {
 export interface RenderContext {
   laneInfo?: LaneInfo,
   orientation: ScheduleOrientation,
+  isZoomed: boolean,
+}
+
+export interface EventFragment {
+  content: string;
+  style?: string;
 }
 
 /**

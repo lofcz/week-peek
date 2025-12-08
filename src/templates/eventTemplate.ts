@@ -1,4 +1,4 @@
-import { ScheduleOrientation, type LaneInfo, type RenderContext, type ScheduleEvent, type TimeOnly } from '../types';
+import { EventFragment, ScheduleOrientation, type LaneInfo, type RenderContext, type ScheduleEvent, type TimeOnly } from '../types';
 
 /**
  * Escape HTML special characters to prevent XSS attacks
@@ -19,26 +19,6 @@ export function escapeHTML(str: string): string {
  */
 function calculateEventDuration(startTime: TimeOnly, endTime: TimeOnly): number {
   return endTime.toMinutes() - startTime.toMinutes();
-}
-
-function eventHtml(event: ScheduleEvent, content: string, extraStyle?: string): string {
-    const clasName = `event ${event.className || ''}`.trim();
-    let style = extraStyle || '';
-    if (event.style) {
-      style += ` ${event.style}`;
-    } else if (event.color) {
-      style += ` background-color: ${event.color};`;
-    }
-
-    return `
-    <div 
-      class="${clasName}" 
-      data-event-id="${event.id}"
-      style="${style.trim()}"
-    >
-      ${content}
-    </div>
-  `;
 }
 
 export function createOverflowIndicatorHTML(
@@ -64,67 +44,83 @@ export function createOverflowIndicatorHTML(
  */
 export function createEventHTML(
   event: ScheduleEvent, 
-  laneInfo?: LaneInfo,
+  renderContext: RenderContext,
   renderEvent?: (event: ScheduleEvent, context: RenderContext) => string
 ): string {  
   let content = '';
   let style = '';
 
   if (renderEvent) {
-    content = renderEvent(event, { laneInfo, orientation: ScheduleOrientation.Vertical });
+    // TODO: this could also return an EventFragment to unify the api
+    content = renderEvent(event, renderContext);
   }
   else {
-    const lanes = laneInfo?.totalLanes ?? 1;
-    const durationMinutes = calculateEventDuration(event.startTime, event.endTime);
-    const isShortEvent = durationMinutes <= 60;
-    const showDescription = event.description && !isShortEvent;
-    let showTime = true;
-    let timeString = `${event.startTime.toString()} - ${event.endTime.toString()}`;
-    let titleStyle = '';
-  
-    if (lanes === 2) {
-      style += `padding: 4px;`;
-      if (durationMinutes < 60) {
-        timeString = `${event.startTime.toString()}`;
-      }
-    }
-    else if (lanes > 2) {
-      style += `padding: 0px;`;
-      console.log(durationMinutes);
-      showTime = false;
-      // Allow title text to wrap instead of ellipsis
-      titleStyle = 'white-space: normal; overflow: visible; text-overflow: clip;';
-    }
-    
-    content = `
-    <div class="event-title"${titleStyle ? ` style="${titleStyle}"` : ''}>${escapeHTML(event.title)}</div>
-    ${showTime ? `<div class="event-time">${timeString}</div>` : ''}
-        ${showDescription ? `<div class="event-description">${escapeHTML(event.description!)}</div>` : ''}
-        `;
+    const eventFragment = renderContext.orientation === ScheduleOrientation.Vertical 
+      ? createEventContentDefault(event, renderContext)
+      : createEventContentHorizontalDefault(event, renderContext);
+    content = eventFragment.content;
+    style = eventFragment.style || '';
   }
      
-  return eventHtml(event, content, style);
+  const clasName = `event ${event.className || ''}`.trim();
+  if (event.style) {
+    style += ` ${event.style}`;
+  }
+
+  return `
+  <div 
+    class="${clasName}" 
+    data-event-id="${event.id}"
+    style="${style.trim()}"
+  >
+    ${content}
+  </div>
+`;
 }
 
-/**
- * Create HTML for a single event in horizontal layout
- * @param event - Event to render
- * @param laneInfo - Optional lane assignment info
- * @param renderEvent - Optional custom renderer function for event content
- * @returns HTML string for the event element
- */
-export function createEventHTMLHorizontal(
-  event: ScheduleEvent, 
-  laneInfo?: LaneInfo,
-  renderEvent?: (event: ScheduleEvent, context: RenderContext) => string
-): string {
-  let content = '';
+function createEventContentDefault(
+  event: ScheduleEvent,
+  renderContext: RenderContext
+): EventFragment {
+  const lanes = renderContext.laneInfo?.totalLanes ?? 1;
+  const durationMinutes = calculateEventDuration(event.startTime, event.endTime);
+  const isShortEvent = durationMinutes <= 60;
+  const showDescription = event.description && !isShortEvent;
+  let showTime = true;
+  let timeString = `${event.startTime.toString()} - ${event.endTime.toString()}`;
+  let titleStyle = '';
+  let style = '';
 
-  if (renderEvent) {
-    content = renderEvent(event, { laneInfo, orientation: ScheduleOrientation.Horizontal });
+  if (lanes === 2) {
+    style += `padding: 4px;`;
+    if (durationMinutes < 60) {
+      timeString = `${event.startTime.toString()}`;
+    }
   }
-  else {
-    const lanes = laneInfo?.totalLanes ?? 1;
+  else if (lanes > 2) {
+    style += `padding: 0px;`;
+    showTime = false;
+    // Allow title text to wrap instead of ellipsis
+    titleStyle = 'white-space: normal; overflow: visible; text-overflow: clip;';
+  }
+
+  const content = `
+  <div class="event-title"${titleStyle ? ` style="${titleStyle}"` : ''}>${escapeHTML(event.title)}</div>
+  ${showTime ? `<div class="event-time">${timeString}</div>` : ''}
+      ${showDescription ? `<div class="event-description">${escapeHTML(event.description!)}</div>` : ''}
+      `;
+  
+  return {
+    content: content,
+    style: style,
+  };
+}
+
+function createEventContentHorizontalDefault(
+  event: ScheduleEvent,
+  renderContext: RenderContext
+): EventFragment {
+  const lanes = renderContext.laneInfo?.totalLanes ?? 1;
     let showTime = true;
     let titleString = escapeHTML(event.title);
     
@@ -132,12 +128,12 @@ export function createEventHTMLHorizontal(
       showTime = false;
     }
     
-    content = `
+    const content = `
         <div class="event-title">${titleString}</div>
         ${showTime ? `<div class="event-time">${event.startTime.toString()} - ${event.endTime.toString()}</div>` : ''}
       `;
+    
+    return {
+      content: content,
+    };
   }
-  
-  return eventHtml(event, content);
-}
-
