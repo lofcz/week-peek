@@ -31,6 +31,7 @@ export class WeeklySchedule {
   private hoveredElement: HTMLElement | null = null;
   private hoverTimeout: ReturnType<typeof setTimeout> | null = null;
   private attachHoverListenersTimeout: ReturnType<typeof setTimeout> | null = null;
+  private currentFilter: ((event: ScheduleEvent) => boolean) | null = null;
 
   /**
    * Factory method to create a WeeklySchedule instance with validation
@@ -654,6 +655,7 @@ export class WeeklySchedule {
           error: new Error('Predicate must be a function')
         };
       }
+      this.currentFilter = predicate;
       this.events = this.allEvents.filter(ev => {
         try {
           return !!predicate(ev);
@@ -674,6 +676,7 @@ export class WeeklySchedule {
    */
   clearFilter(): Result<void, Error> {
     try {
+      this.currentFilter = null;
       this.events = [...this.allEvents];
       this.render();
       return { success: true, data: undefined };
@@ -713,8 +716,22 @@ export class WeeklySchedule {
       };
     }
 
-    this.events = [...events];
     this.allEvents = [...events];
+    
+    // Reapply active filter if one exists
+    if (this.currentFilter !== null) {
+      this.events = this.allEvents.filter(ev => {
+        try {
+          return !!this.currentFilter!(ev);
+        } catch (e) {
+          // If predicate throws, treat as "do not include"
+          return false;
+        }
+      });
+    } else {
+      this.events = [...this.allEvents];
+    }
+    
     this.render();
 
     return {
@@ -764,19 +781,17 @@ export class WeeklySchedule {
     }
 
     this.config = {
-      visibleDays: mergedConfig.visibleDays || this.config.visibleDays!,
-      startHour: mergedConfig.startHour ?? this.config.startHour!,
-      endHour: mergedConfig.endHour ?? this.config.endHour!,
-      timeSlotInterval: mergedConfig.timeSlotInterval ?? this.config.timeSlotInterval!,
-
-      className: mergedConfig.className || this.config.className!,
+      visibleDays: mergedConfig.visibleDays || [...WORK_WEEK_DAYS],
+      startHour: mergedConfig.startHour ?? 9,
+      endHour: mergedConfig.endHour ?? 17,
+      timeSlotInterval: mergedConfig.timeSlotInterval ?? TimeSlotInterval.SixtyMinutes,
+      className: mergedConfig.className ?? '',
       dayNameTranslations: mergedConfig.dayNameTranslations,
-
-      orientation: mergedConfig.orientation ?? this.config.orientation!,
-      icons: mergedConfig.icons ?? this.config.icons,
-      renderEvent: mergedConfig.renderEvent ?? this.config.renderEvent,
-      eventGap: mergedConfig.eventGap !== undefined ? mergedConfig.eventGap : this.config.eventGap,
-      overflowIndicatorFormat: mergedConfig.overflowIndicatorFormat ?? this.config.overflowIndicatorFormat,
+      orientation: mergedConfig.orientation ?? ScheduleOrientation.Vertical,
+      icons: mergedConfig.icons,
+      renderEvent: mergedConfig.renderEvent,
+      eventGap: mergedConfig.eventGap,
+      overflowIndicatorFormat: mergedConfig.overflowIndicatorFormat,
     } as ScheduleConfig;
 
     this.render();

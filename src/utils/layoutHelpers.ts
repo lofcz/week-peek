@@ -12,10 +12,10 @@ export function timeToSlotIndex(
   time: TimeOnly,
   startHour: Hour,
   timeSlotInterval: TimeSlotInterval
-): number { // time: 16:15, startHour: 9, timeSlotInterval: 60
-  const hoursFromStart = time.hours - startHour; // 16 - 9 = 7
-  const totalMinutes = hoursFromStart * 60 + time.minutes; // 7 * 60 + 15 = 435
-  return Math.floor(totalMinutes / timeSlotInterval); // Math.floor(435 / 60) = 7
+): number {
+  const hoursFromStart = time.hours - startHour;
+  const totalMinutes = hoursFromStart * 60 + time.minutes;
+  return Math.floor(totalMinutes / timeSlotInterval);
 }
 
 
@@ -30,12 +30,12 @@ export function timeToSlotOffset(
   time: TimeOnly,
   startHour: Hour,
   timeSlotInterval: TimeSlotInterval
-): number { // time: 16:15, startHour: 9, timeSlotInterval: 60
-  const hoursFromStart = time.hours - startHour; // 16 - 9 = 7
-  const totalMinutes = hoursFromStart * 60 + time.minutes; // 7 * 60 + 15 = 435
-  const slotIndex = Math.floor(totalMinutes / timeSlotInterval); // Math.floor(435 / 60) = 7
-  const minutesIntoSlot = totalMinutes - (slotIndex * timeSlotInterval); // 435 - (7 * 60) = 15
-  return minutesIntoSlot / timeSlotInterval; // 15 / 60 = 0.25
+): number {
+  const hoursFromStart = time.hours - startHour;
+  const totalMinutes = hoursFromStart * 60 + time.minutes;
+  const slotIndex = Math.floor(totalMinutes / timeSlotInterval);
+  const minutesIntoSlot = totalMinutes - (slotIndex * timeSlotInterval);
+  return minutesIntoSlot / timeSlotInterval;
 }
 
 /**
@@ -115,7 +115,7 @@ interface SpanRange {
 interface AxisSizing {
   start: number;
   size: number;
-  gap?: string | number; // Gap value to be used in CSS calc()
+  gap?: string | number;
 }
 
 function calculateEventWidthAxis(laneInfo: LaneInfo | undefined, gap?: string | number): AxisSizing {
@@ -125,7 +125,6 @@ function calculateEventWidthAxis(laneInfo: LaneInfo | undefined, gap?: string | 
       size: 100 / laneInfo.totalLanes
     };
     
-    // Store gap value if provided (will be used in CSS calc())
     if (gap !== undefined) {
       result.gap = gap;
     }
@@ -169,7 +168,6 @@ function calculateEventLengthAxis(event: ScheduleEvent, startHour: Hour, timeSlo
  * @returns True if events overlap in time
  */
 export function eventsOverlap(event1: ScheduleEvent, event2: ScheduleEvent): boolean {
-  // Events must be on the same day to overlap
   if (event1.day !== event2.day) {
     return false;
   }
@@ -212,11 +210,22 @@ export function assignLanes(events: ScheduleEvent[]): Map<string, LaneInfo> {
   }
   
   const sorted = [...events].sort((a, b) => {
+    const aIsOverflow = a.className?.includes('event-overflow-indicator') ?? false;
+    const bIsOverflow = b.className?.includes('event-overflow-indicator') ?? false;
+    
+    if (aIsOverflow && !bIsOverflow) {
+      return 1; // a (overflow) comes after b
+    }
+    if (!aIsOverflow && bIsOverflow) {
+      return -1; // a comes before b (overflow)
+    }
+    
     const startA = a.startTime.toMinutes();
     const startB = b.startTime.toMinutes();
     if (startA !== startB) {
       return startA - startB;
     }
+
     return b.endTime.toMinutes() - a.endTime.toMinutes();
   });
   
