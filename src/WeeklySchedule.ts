@@ -406,7 +406,7 @@ export class WeeklySchedule {
     };
     const eventHTML = isOverflowIndicator 
     ? createOverflowIndicatorHTML(event, laneInfo) 
-    : createEventHTML(event, renderContext);
+    : createEventHTML(event, renderContext, this.config.renderEvent);
 
     // Base grid positioning (integer cell positions)
     const gridStyle = `grid-row: ${layout.gridRowStart} / ${layout.gridRowEnd}; grid-column: ${layout.gridColumnStart} / ${layout.gridColumnEnd};`;
