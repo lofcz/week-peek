@@ -316,9 +316,6 @@ export class WeeklySchedule {
    * @private
    */
   private createEventsGrid(events: ScheduleEvent[]): string {
-    const OVERLAP_HIDE_THRESHOLD = 3;
-    const OVERLAP_VISIBLE_COUNT = 2;
-
     const eventsByDay = groupEventsByDay(events);
     const laneMaps = new Map<DayOfWeek, Map<string, LaneInfo>>();
     let eventsHtml = '';
@@ -335,49 +332,78 @@ export class WeeklySchedule {
       return `<div class="events-grid">${eventsHtml}</div>`;
     }
 
-    // Normal mode: compress conflict groups per day
+    // TODO: this logic can surely be simplified.
+    // Normal mode: compress based on lane assignment
     const compressedEvents: ScheduleEvent[] = [];
     for (const [day, dayEvents] of eventsByDay.entries()) {
-      // Sort by start for stable selection
-      const sorted = [...dayEvents].sort((a, b) => a.startTime.toMinutes() - b.startTime.toMinutes());
+      const dayLaneMap = assignLanes(dayEvents);
+      
+      // Determine visibility threshold based on total lanes
+      const maxLaneIndex = Math.max(0, ...Array.from(dayLaneMap.values()).map(info => info.laneIndex));
 
-      const conflictGroups: ScheduleEvent[][] = [];
-      for (const ev of sorted) {
-        let placed = false;
-        for (const group of conflictGroups) {
-          if (group.some(g => g.day === ev.day && !(g.endTime.toMinutes() <= ev.startTime.toMinutes() || g.startTime.toMinutes() >= ev.endTime.toMinutes()))) {
-            group.push(ev);
-            placed = true;
-            break;
-          }
-        }
-        if (!placed) conflictGroups.push([ev]);
-      }
+      // If we have 3 or fewer lanes (indices 0, 1, 2), show all of them.
+      // If we have more (index 3+), show only 2 (indices 0, 1) + overflow.
+      const visibleThreshold = maxLaneIndex <= 2 ? 3 : 2;
 
-      for (const group of conflictGroups) {
-        const groupSize = group.length;
-        if (groupSize > OVERLAP_HIDE_THRESHOLD) {
-          const visible = group.slice(0, OVERLAP_VISIBLE_COUNT);
-          const hiddenCount = groupSize - OVERLAP_VISIBLE_COUNT;
-          const earliest = group.reduce((min, e) => (e.startTime.toMinutes() < min.startTime.toMinutes() ? e : min), group[0]);
-          const latest = group.reduce((max, e) => (e.endTime.toMinutes() > max.endTime.toMinutes() ? e : max), group[0]);
-          const title = this.config.overflowIndicatorFormat ? this.config.overflowIndicatorFormat(hiddenCount) : `+${hiddenCount} more`;
+      const visibleDayEvents: ScheduleEvent[] = [];
+      const hiddenDayEvents: ScheduleEvent[] = [];
+      
+      // 2. Split into visible and hidden based on lane index
+      dayEvents.forEach(ev => {
+         const info = dayLaneMap.get(ev.id);
+         if (info && info.laneIndex < visibleThreshold) {
+             visibleDayEvents.push(ev);
+         } else {
+             hiddenDayEvents.push(ev);
+         }
+      });
 
-          const overflowEvent: ScheduleEvent = {
-            id: `overflow-${day}-${earliest.id}`,
-            day,
-            startTime: earliest.startTime,
-            endTime: latest.endTime,
-            title,
-            description: undefined,
-            className: 'event-overflow-indicator'
+      // 3. Cluster hidden events and create overflow indicators
+      if (hiddenDayEvents.length > 0) {
+          // Sort hidden by start time for clustering
+          hiddenDayEvents.sort((a, b) => a.startTime.toMinutes() - b.startTime.toMinutes());
+          
+          let currentCluster: ScheduleEvent[] = [hiddenDayEvents[0]];
+          let currentClusterEnd = hiddenDayEvents[0].endTime.toMinutes();
+          
+          const addOverflowForCluster = (cluster: ScheduleEvent[]) => {
+             const earliest = cluster.reduce((min, e) => (e.startTime.toMinutes() < min.startTime.toMinutes() ? e : min), cluster[0]);
+             const latest = cluster.reduce((max, e) => (e.endTime.toMinutes() > max.endTime.toMinutes() ? e : max), cluster[0]);
+             const hiddenCount = cluster.length;
+             const title = this.config.overflowIndicatorFormat ? this.config.overflowIndicatorFormat(hiddenCount) : `+${hiddenCount} more`;
+
+             const overflowEvent: ScheduleEvent = {
+                id: `overflow-${day}-${earliest.id}`,
+                day,
+                startTime: earliest.startTime,
+                endTime: latest.endTime,
+                title,
+                description: undefined,
+                className: 'event-overflow-indicator'
+             };
+             compressedEvents.push(overflowEvent);
           };
-          compressedEvents.push(...visible, overflowEvent);
-        } else {
-          compressedEvents.push(...group);
-        }
-      }
 
+          for (let i = 1; i < hiddenDayEvents.length; i++) {
+              const ev = hiddenDayEvents[i];
+              const start = ev.startTime.toMinutes();
+              const end = ev.endTime.toMinutes();
+              
+              if (start < currentClusterEnd) {
+                  currentCluster.push(ev);
+                  currentClusterEnd = Math.max(currentClusterEnd, end);
+              } else {
+                  addOverflowForCluster(currentCluster);
+                  currentCluster = [ev];
+                  currentClusterEnd = end;
+              }
+          }
+          addOverflowForCluster(currentCluster);
+      }
+      
+      compressedEvents.push(...visibleDayEvents);
+      
+      // Re-assign lanes for the compressed set of events
       const compressedDayEvents = compressedEvents.filter(e => e.day === day);
       laneMaps.set(day, assignLanes(compressedDayEvents));
     }
