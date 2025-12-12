@@ -52,21 +52,23 @@ export function createZoomedDayHeaderHTML(
   const prevSymbol = icons?.prevDay ?? (isHorizontal ? '↑' : '←');
   const nextSymbol = icons?.nextDay ?? (isHorizontal ? '↓' : '→');
   
-  const prevDisabled = prevDay === null ? ' disabled' : '';
-  const nextDisabled = nextDay === null ? ' disabled' : '';
+  const isPrevDisabled = prevDay === null;
+  const isNextDisabled = nextDay === null;
   
   const prevDayAttr = prevDay !== null ? ` data-day="${prevDay}"` : '';
   const nextDayAttr = nextDay !== null ? ` data-day="${nextDay}"` : '';
+  const prevDisabledAttr = isPrevDisabled ? ' disabled' : '';
+  const nextDisabledAttr = isNextDisabled ? ' disabled' : '';
   
   return `
     <div class="zoomed-day-header">
-      <button type="button" class="nav-btn nav-btn-prev${prevDisabled}" data-action="prev-day"${prevDayAttr} aria-label="Previous day"${prevDisabled ? ' disabled' : ''}>
+      <button type="button" class="nav-btn nav-btn-prev" data-action="prev-day"${prevDayAttr} aria-label="Previous day"${prevDisabledAttr}>
         ${prevSymbol}
       </button>
       <div class="day-label-container">
         <span class="day-header-label">${dayName}</span>
       </div>
-      <button type="button" class="nav-btn nav-btn-next${nextDisabled}" data-action="next-day"${nextDayAttr} aria-label="Next day"${nextDisabled ? ' disabled' : ''}>
+      <button type="button" class="nav-btn nav-btn-next" data-action="next-day"${nextDayAttr} aria-label="Next day"${nextDisabledAttr}>
         ${nextSymbol}
       </button>
     </div>
