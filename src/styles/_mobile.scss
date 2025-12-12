@@ -41,7 +41,7 @@
   padding: 0.75rem;
   background: var(--schedule-bg-color, $color-bg-alt);
   border-radius: $border-radius-md;
-  border-left: 5px solid; // Color will be set inline
+  border-left: 5px solid var(--schedule-primary-color, $color-primary);
   cursor: pointer;
   transition: background-color 0.15s ease;
 

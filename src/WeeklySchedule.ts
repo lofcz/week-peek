@@ -246,15 +246,19 @@ export class WeeklySchedule {
         <div class="mobile-day-block">
           <div class="mobile-day-header">${getDayName(day, this.config.dayNameTranslations)}</div>
           <div class="mobile-event-list">
-            ${dayEvents.map(event => `
-              <div class="mobile-event" data-event-id="${event.id}" style="border-left-color: var(--schedule-primary-color)">
+            ${dayEvents.map(event => {
+              const eventClass = event.className ? ` ${event.className}` : '';
+              const eventStyle = event.style ? ` style="${event.style}"` : '';
+              return `
+              <div class="mobile-event${eventClass}" data-event-id="${event.id}"${eventStyle}>
                 <div class="mobile-event-time">${event.startTime.toString()}</div>
                 <div class="mobile-event-details">
                   <div class="mobile-event-title">${event.title}</div>
                   <div class="mobile-event-duration">${event.startTime.toString()} - ${event.endTime.toString()}</div>
                 </div>
               </div>
-            `).join('') || '<div class="mobile-no-events">No events for this day.</div>'}
+            `;
+            }).join('') || '<div class="mobile-no-events">No events for this day.</div>'}
           </div>
         </div>
       `;
