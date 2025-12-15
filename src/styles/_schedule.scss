@@ -185,11 +185,17 @@
   }
   .weekly-schedule.zoomed.horizontal .axis-horizontal { width: max-content; }
 
- // Fixed hour width in zoomed horizontal mode
- .weekly-schedule.zoomed.horizontal .axis-horizontal {
-   grid-template-columns: repeat(var(--num-columns, 8), var(--hour-col-width, 160px));
-   width: max-content;
- }
+// Flexible hour width in zoomed horizontal mode - uses explicitly calculated --hour-col-width
+.weekly-schedule.zoomed.horizontal .axis-horizontal {
+  grid-template-columns: repeat(var(--num-columns, 8), var(--hour-col-width, $hour-col-min-width));
+  width: 100%;
+  min-width: min-content;
+}
+
+// Events grid must match the axis columns in zoomed horizontal mode
+.weekly-schedule.zoomed.horizontal .events-grid {
+  grid-template-columns: repeat(var(--num-columns, 8), var(--hour-col-width, $hour-col-min-width));
+}
 
 
 

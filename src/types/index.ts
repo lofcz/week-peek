@@ -255,11 +255,6 @@ export interface ScheduleConfig {
   timeSlotInterval?: TimeSlotInterval;
 
   /**
-   * CSS class name to apply to the root schedule element
-   */
-  className?: string;
-
-  /**
    * Day name translations for localization
    * Default: English day names
    * Example: { [DayOfWeek.Monday]: 'Lunes', [DayOfWeek.Tuesday]: 'Martes', ... }

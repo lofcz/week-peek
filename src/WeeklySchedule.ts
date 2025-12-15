@@ -33,6 +33,8 @@ export class WeeklySchedule {
   private hoverTimeout: ReturnType<typeof setTimeout> | null = null;
   private attachHoverListenersTimeout: ReturnType<typeof setTimeout> | null = null;
   private currentFilter: ((event: ScheduleEvent) => boolean) | null = null;
+  private originalContainerClasses: string;
+  private originalContainerStyle: string;
 
   /**
    * Factory method to create a WeeklySchedule instance with validation
@@ -94,6 +96,10 @@ export class WeeklySchedule {
    */
   private constructor(container: HTMLElement, config: ScheduleConfig, events: ScheduleEvent[] = []) {
     this.container = container;
+    // Capture original classes and styles from user's container
+    this.originalContainerClasses = container.className || '';
+    this.originalContainerStyle = container.getAttribute('style') || '';
+    
     this.events = [...events];
     this.allEvents = [...events];
     this.config = {
@@ -102,7 +108,6 @@ export class WeeklySchedule {
       endHour: config.endHour ?? 17,
       timeSlotInterval: config.timeSlotInterval ?? TimeSlotInterval.SixtyMinutes,
 
-      className: config.className || '',
       dayNameTranslations: config.dayNameTranslations,
 
       orientation: config.orientation ?? ScheduleOrientation.Vertical,
@@ -145,14 +150,67 @@ export class WeeklySchedule {
         styleString += ' --slot-row-height: 64px;';
       }
 
-      const html = `
-        <div class="weekly-schedule ${orientationClass} ${zoomClass} ${mobileClass} ${this.config.className!}" style="${styleString}">
-          ${isMobile ? this.renderMobileView() : this.renderClassicView()}
-        </div>
-      `;
+      // Fetch fresh classes and styles from container (allows programmatic updates)
+      const currentClasses = this.container.className || '';
+      const currentStyle = this.container.getAttribute('style') || '';
+      
+      // Filter out our component classes to preserve only user classes
+      const componentClassNames = ['weekly-schedule', 'horizontal', 'vertical', 'zoomed', 'mobile'];
+      const userClasses = currentClasses
+        .split(' ')
+        .filter(cls => cls && !componentClassNames.includes(cls))
+        .join(' ');
+      
+      // Merge user classes with component classes
+      const componentClasses = `weekly-schedule ${orientationClass} ${zoomClass} ${mobileClass}`;
+      const mergedClasses = userClasses 
+        ? `${userClasses} ${componentClasses}`
+        : componentClasses;
+      this.container.className = mergedClasses;
+
+      // Filter out our component styles to preserve only user styles
+      const componentStyleProps = ['--num-columns', '--num-rows', '--header-height', '--cross-axis-width', '--slot-row-height', '--hour-col-width'];
+      const userStyles = currentStyle
+        .split(';')
+        .filter(style => {
+          const prop = style.trim().split(':')[0]?.trim();
+          return prop && !componentStyleProps.includes(prop);
+        })
+        .join('; ');
+      
+      // Merge user styles with component styles
+      const mergedStyles = userStyles
+        ? `${userStyles}; ${styleString}`
+        : styleString;
+      this.container.setAttribute('style', mergedStyles);
+
+      // Set innerHTML to just the inner content
+      const html = isMobile ? this.renderMobileView() : this.renderClassicView();
 
       this.cleanupHoverListeners();
       this.container.innerHTML = html;
+      
+      // Calculate and set --hour-col-width for zoomed horizontal mode
+      if (this.zoomedDay !== null && this.config.orientation === ScheduleOrientation.Horizontal) {
+        setTimeout(() => {
+          const scheduleScroll = this.container.querySelector('.schedule-scroll') as HTMLElement;
+          if (scheduleScroll) {
+            const availableWidth = scheduleScroll.clientWidth;
+            const numColumns = axisConfiguration.numColumns;
+            const calculatedWidth = availableWidth / numColumns;
+            const minWidth = 160; // Must match $hour-col-min-width in _variables.scss
+            const hourColWidth = calculatedWidth < minWidth ? minWidth : calculatedWidth;
+            
+            // Update the CSS variable
+            const currentStyle = this.container.getAttribute('style') || '';
+            const updatedStyle = currentStyle.includes('--hour-col-width')
+              ? currentStyle.replace(/--hour-col-width:\s*[^;]+;?/, `--hour-col-width: ${hourColWidth}px;`)
+              : `${currentStyle}; --hour-col-width: ${hourColWidth}px;`;
+            this.container.setAttribute('style', updatedStyle);
+          }
+        }, 0);
+      }
+      
       this.attachHoverListenersTimeout = setTimeout(() => {
         this.attachHoverListeners();
         this.attachHoverListenersTimeout = null;
@@ -306,7 +364,7 @@ export class WeeklySchedule {
     const timeSlotsHtml = timeSlots.map(time => createTimeLabelHTML(time)).join('');
 
     if (isHorizontal) {
-      return {
+      const config = {
         headerHeight: '40px',
         crossAxisWidth: '100px',
         numColumns: timeSlots.length,
@@ -314,8 +372,9 @@ export class WeeklySchedule {
         headerAxisData: timeSlotsHtml,
         crossAxisData: daysHtml
       };
+      return config;
     } else {
-      return {
+      const config = {
         headerHeight: '40px',
         crossAxisWidth: '60px',
         numColumns: this.config.visibleDays!.length,
@@ -323,6 +382,7 @@ export class WeeklySchedule {
         headerAxisData: daysHtml,
         crossAxisData: timeSlotsHtml
       };
+      return config;
     }
   }
 
@@ -710,7 +770,7 @@ export class WeeklySchedule {
    * Attach hover listeners to event elements
    */
   private attachHoverListeners(): void {
-    const scheduleRoot = this.container.querySelector('.weekly-schedule');
+    const scheduleRoot = this.container;
     if (scheduleRoot?.classList.contains('mobile')) {
       return;
     }
@@ -774,7 +834,7 @@ export class WeeklySchedule {
    */
   private scrollToElementInScroll(el: HTMLElement): void {
     if (!el) return;
-    const root = this.container.querySelector('.weekly-schedule');
+    const root = this.container;
     const scroll = root?.querySelector<HTMLElement>('.schedule-scroll');
     if (!scroll) return;
 
@@ -944,7 +1004,6 @@ export class WeeklySchedule {
       startHour: mergedConfig.startHour ?? 9,
       endHour: mergedConfig.endHour ?? 17,
       timeSlotInterval: mergedConfig.timeSlotInterval ?? TimeSlotInterval.SixtyMinutes,
-      className: mergedConfig.className ?? '',
       dayNameTranslations: mergedConfig.dayNameTranslations,
       orientation: mergedConfig.orientation ?? ScheduleOrientation.Vertical,
       icons: mergedConfig.icons,
@@ -968,6 +1027,13 @@ export class WeeklySchedule {
   destroy(): void {
     this.cleanupHoverListeners();
     this.container.innerHTML = '';
+    // Restore original classes and styles
+    this.container.className = this.originalContainerClasses;
+    if (this.originalContainerStyle) {
+      this.container.setAttribute('style', this.originalContainerStyle);
+    } else {
+      this.container.removeAttribute('style');
+    }
     this.events = [];
     this.resizeObserver.disconnect();
   }
