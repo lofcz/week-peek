@@ -355,8 +355,7 @@ export class WeeklySchedule {
       return `<div class="events-grid">${eventsHtml}</div>`;
     }
 
-    // TODO: this logic can surely be simplified.
-    // Normal mode: compress based on lane assignment
+    // Normal mode: compress based on lane assignment with priority-based lane swapping
     const compressedEvents: ScheduleEvent[] = [];
     for (const [day, dayEvents] of eventsByDay.entries()) {
       const dayLaneMap = assignLanes(dayEvents);
@@ -368,17 +367,81 @@ export class WeeklySchedule {
       // If we have more (index 3+), show only 2 (indices 0, 1) + overflow.
       const visibleThreshold = maxLaneIndex <= 2 ? 3 : 2;
 
+      // Group events by lane index
+      const eventsByLane = new Map<number, ScheduleEvent[]>();
+      dayEvents.forEach(ev => {
+        const info = dayLaneMap.get(ev.id);
+        if (info) {
+          if (!eventsByLane.has(info.laneIndex)) {
+            eventsByLane.set(info.laneIndex, []);
+          }
+          eventsByLane.get(info.laneIndex)!.push(ev);
+        }
+      });
+
+      // Calculate max priority for each lane
+      const lanePriorities = new Map<number, number>();
+      for (const [laneIndex, laneEvents] of eventsByLane.entries()) {
+        const maxPriority = Math.max(...laneEvents.map(ev => ev.lanePriority ?? 0));
+        lanePriorities.set(laneIndex, maxPriority);
+      }
+
+      // Determine which lanes are visible vs hidden based on threshold
+      const visibleLaneIndices = new Set<number>();
+      const hiddenLaneIndices = new Set<number>();
+      for (const laneIndex of eventsByLane.keys()) {
+        if (laneIndex < visibleThreshold) {
+          visibleLaneIndices.add(laneIndex);
+        } else {
+          hiddenLaneIndices.add(laneIndex);
+        }
+      }
+
+      // Check if any hidden lane should swap with a visible lane based on priority
+      // Find the hidden lane with highest priority
+      let highestHiddenPriority = -Infinity;
+      let highestHiddenLane = -1;
+      for (const laneIndex of hiddenLaneIndices) {
+        const priority = lanePriorities.get(laneIndex) ?? 0;
+        if (priority > highestHiddenPriority) {
+          highestHiddenPriority = priority;
+          highestHiddenLane = laneIndex;
+        }
+      }
+
+      // Find the visible lane with lowest priority (or last visible lane if equal)
+      if (highestHiddenLane >= 0 && highestHiddenPriority > 0) {
+        let lowestVisiblePriority = Infinity;
+        let lowestVisibleLane = -1;
+        for (const laneIndex of visibleLaneIndices) {
+          const priority = lanePriorities.get(laneIndex) ?? 0;
+          // Use <= to prefer higher lane indices (last visible lane) when priorities are equal
+          if (priority < lowestVisiblePriority || (priority <= lowestVisiblePriority && laneIndex > lowestVisibleLane)) {
+            lowestVisiblePriority = priority;
+            lowestVisibleLane = laneIndex;
+          }
+        }
+
+        // Swap if hidden lane has higher priority than lowest visible lane
+        if (lowestVisibleLane >= 0 && highestHiddenPriority > lowestVisiblePriority) {
+          visibleLaneIndices.delete(lowestVisibleLane);
+          visibleLaneIndices.add(highestHiddenLane);
+          hiddenLaneIndices.delete(highestHiddenLane);
+          hiddenLaneIndices.add(lowestVisibleLane);
+        }
+      }
+
+      // Split events into visible and hidden based on final lane visibility
       const visibleDayEvents: ScheduleEvent[] = [];
       const hiddenDayEvents: ScheduleEvent[] = [];
       
-      // 2. Split into visible and hidden based on lane index
       dayEvents.forEach(ev => {
-         const info = dayLaneMap.get(ev.id);
-         if (info && info.laneIndex < visibleThreshold) {
-             visibleDayEvents.push(ev);
-         } else {
-             hiddenDayEvents.push(ev);
-         }
+        const info = dayLaneMap.get(ev.id);
+        if (info && visibleLaneIndices.has(info.laneIndex)) {
+          visibleDayEvents.push(ev);
+        } else {
+          hiddenDayEvents.push(ev);
+        }
       });
 
       // 3. Cluster hidden events and create overflow indicators

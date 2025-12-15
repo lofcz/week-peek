@@ -203,6 +203,15 @@ export interface ScheduleEvent {
    * Optional metadata for application use
    */
   metadata?: Record<string, unknown>;
+
+  /**
+   * Optional priority for lane assignment when events overlap.
+   * Higher values are assigned to lower lane indices (more visible).
+   * Events with higher lanePriority will be visible in the compressed view,
+   * while lower priority events may be hidden in overflow.
+   * Default: 0
+   */
+  lanePriority?: number;
 }
 
 export interface RenderContext {
