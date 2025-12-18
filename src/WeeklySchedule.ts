@@ -594,7 +594,7 @@ export class WeeklySchedule {
     const gridStyle = `grid-row: ${layout.gridRowStart} / ${layout.gridRowEnd}; grid-column: ${layout.gridColumnStart} / ${layout.gridColumnEnd};`;
 
     const safeId = event.id.replace(/[^a-zA-Z0-9-_]/g, '_');
-    const transitionStyle = `view-transition-name: event-${safeId};`;
+    const transitionStyle = `view-transition-name: event-${safeId}; view-transition-class: event;`;
 
     // Add absolute positioning for fractional offsets
     // Positioning values are calculated in calculateEventPosition based on orientation

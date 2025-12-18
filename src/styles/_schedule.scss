@@ -52,6 +52,53 @@
   overflow: hidden;
 }
 
+$animation-duration: 300ms;
+$default-curve: cubic-bezier(0.4, 0.0, 0.2, 1);
+$ease-curve: cubic-bezier(0.25, 0.1, 0.25, 0.1);
+$ease-in-out-curve: cubic-bezier(0.42, 0.0, 0.58, 1);
+
+::view-transition-old(*.event) {
+  animation: 250ms $default-curve both fade-out;
+}
+
+::view-transition-new(*.event) {
+  animation: $animation-duration $default-curve both fade-scale-in;
+}
+
+@keyframes fade-out {
+  to {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+}
+
+@keyframes fade-scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+}
+
+/* Respect prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(*.event),
+  ::view-transition-new(*.event) {
+    animation-duration: 50ms;
+  }
+  
+  @keyframes fade-out {
+    to {
+      opacity: 0;
+    }
+  }
+  
+  @keyframes fade-scale-in {
+    from {
+      opacity: 0;
+      transform: none;
+    }
+  }
+}
 
 .weekly-schedule.horizontal .schedule-main {
   display: grid;
