@@ -80,6 +80,14 @@ export interface DayLayout {
   contentBounds: Rect;
   /** Day index (0-based) in visible days */
   index: number;
+  /** Previous day navigation button bounds (only when zoomed) */
+  prevButtonBounds?: Rect;
+  /** Next day navigation button bounds (only when zoomed) */
+  nextButtonBounds?: Rect;
+  /** Whether previous button is disabled (no previous day available) */
+  prevButtonDisabled?: boolean;
+  /** Whether next button is disabled (no next day available) */
+  nextButtonDisabled?: boolean;
 }
 
 /**
@@ -140,12 +148,12 @@ export interface ScheduleLayout {
  * Hit test result
  */
 export interface HitTestResult {
-  type: 'event' | 'day-header' | 'time-slot' | 'grid' | 'none';
+  type: 'event' | 'day-header' | 'time-slot' | 'grid' | 'prev-day-button' | 'next-day-button' | 'none';
   /** The event if type is 'event' */
   event?: ScheduleEvent;
   /** The event layout if type is 'event' */
   eventLayout?: EventLayout;
-  /** The day if type is 'day-header' */
+  /** The day if type is 'day-header' or navigation button */
   day?: DayOfWeek;
   /** The time slot if type is 'time-slot' */
   timeSlot?: TimeSlotLayout;
@@ -315,6 +323,8 @@ export interface InteractionState {
   hoveredEvent: ScheduleEvent | null;
   /** Currently hovered day header */
   hoveredDay: DayOfWeek | null;
+  /** Currently hovered navigation button */
+  hoveredNavButton: 'prev' | 'next' | null;
   /** Mouse position in canvas coordinates */
   mousePosition: Point | null;
   /** Whether mouse is down */

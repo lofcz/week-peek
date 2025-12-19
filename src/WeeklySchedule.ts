@@ -257,6 +257,7 @@ export class WeeklySchedule {
     this.interactionState = {
       hoveredEvent: null,
       hoveredDay: null,
+      hoveredNavButton: null,
       mousePosition: null,
       isMouseDown: false,
       dragStart: null,
@@ -319,6 +320,7 @@ export class WeeklySchedule {
     this.gridRenderer = new GridRenderer(this.renderer, {
       ...this.config.grid,
       dayNameTranslations: this.config.dayNameTranslations,
+      icons: this.config.icons,
     });
     this.eventRenderer = new EventRenderer(this.renderer, this.config.events);
     this.hitTester = new HitTester();
@@ -669,7 +671,8 @@ export class WeeklySchedule {
       height,
       processedEvents,
       dpr,
-      this.zoomedDay
+      this.zoomedDay,
+      this.originalVisibleDays
     );
     
     // Update hit tester
@@ -918,6 +921,26 @@ export class WeeklySchedule {
       const dayLayout = this.layout.days.find(d => d.day === this.interactionState.hoveredDay);
       if (dayLayout) {
         this.gridRenderer.renderDayHoverHighlight(dayLayout, this.renderer.getTheme());
+      }
+    }
+
+    // Render hover highlight for navigation buttons (only if not disabled)
+    const zoomedDay = this.layout.zoomedDay;
+    if (this.interactionState.hoveredNavButton !== null && zoomedDay !== null) {
+      const zoomedDayLayout = this.layout.days.find(d => d.day === zoomedDay);
+      if (zoomedDayLayout) {
+        const isDisabled = this.interactionState.hoveredNavButton === 'prev' 
+          ? (zoomedDayLayout.prevButtonDisabled ?? false)
+          : (zoomedDayLayout.nextButtonDisabled ?? false);
+        // Only render hover if button is not disabled
+        if (!isDisabled) {
+          this.gridRenderer.renderNavigationButtonHover(
+            zoomedDayLayout,
+            this.interactionState.hoveredNavButton,
+            this.renderer.getTheme(),
+            this.layout.orientation
+          );
+        }
       }
     }
   }
@@ -1226,6 +1249,7 @@ export class WeeklySchedule {
     const hitResult = this.hitTester.hitTest(adjustedPoint);
     this.updateHoverState(hitResult);
     this.updateCursor(hitResult);
+    this.updateNavigationButtonHover(hitResult);
     this.scheduleRender();
   }
 
@@ -1252,6 +1276,7 @@ export class WeeklySchedule {
     
     this.interactionState.hoveredEvent = null;
     this.interactionState.hoveredDay = null;
+    this.interactionState.hoveredNavButton = null;
     this.canvas.style.cursor = 'default';
     this.scheduleRender();
   }
@@ -1299,6 +1324,26 @@ export class WeeklySchedule {
             this.resetZoom();
           } else {
             this.zoomToDay(hitResult.day);
+          }
+        }
+        break;
+
+      case 'prev-day-button':
+        if (hitResult.day !== undefined && this.zoomedDay !== null) {
+          const currentIndex = this.originalVisibleDays.indexOf(this.zoomedDay);
+          if (currentIndex > 0) {
+            const prevDay = this.originalVisibleDays[currentIndex - 1];
+            this.zoomToDay(prevDay);
+          }
+        }
+        break;
+
+      case 'next-day-button':
+        if (hitResult.day !== undefined && this.zoomedDay !== null) {
+          const currentIndex = this.originalVisibleDays.indexOf(this.zoomedDay);
+          if (currentIndex < this.originalVisibleDays.length - 1) {
+            const nextDay = this.originalVisibleDays[currentIndex + 1];
+            this.zoomToDay(nextDay);
           }
         }
         break;
@@ -1442,18 +1487,31 @@ export class WeeklySchedule {
   }
 
   /**
+   * Update navigation button hover state
+   */
+  private updateNavigationButtonHover(hitResult: HitTestResult): void {
+    if (hitResult.type === 'prev-day-button' || hitResult.type === 'next-day-button') {
+      this.interactionState.hoveredNavButton = hitResult.type === 'prev-day-button' ? 'prev' : 'next';
+    } else {
+      this.interactionState.hoveredNavButton = null;
+    }
+  }
+
+  /**
    * Update cursor based on hit result
    */
   private updateCursor(hitResult: HitTestResult): void {
     let cursor = 'default';
-    
+
     switch (hitResult.type) {
       case 'event':
       case 'day-header':
+      case 'prev-day-button':
+      case 'next-day-button':
         cursor = 'pointer';
         break;
     }
-    
+
     if (this.canvas.style.cursor !== cursor) {
       this.canvas.style.cursor = cursor;
     }

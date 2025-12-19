@@ -2,8 +2,8 @@
  * Grid Renderer - Renders grid lines, headers, and time axis
  */
 
-import type { ScheduleLayout, DayLayout, CanvasTheme, FontSpec } from './types';
-import { ScheduleOrientation, getDayName, type DayNameTranslations } from '../types';
+import type { ScheduleLayout, DayLayout, CanvasTheme, FontSpec, Rect } from './types';
+import { ScheduleOrientation, getDayName, type DayNameTranslations, type IconConfig } from '../types';
 import { CanvasRenderer } from './CanvasRenderer';
 
 /**
@@ -22,6 +22,8 @@ export interface GridRendererConfig {
   headerFont: FontSpec;
   /** Time label font */
   timeFont: FontSpec;
+  /** Icon configuration for navigation buttons */
+  icons?: IconConfig;
 }
 
 const DEFAULT_CONFIG: GridRendererConfig = {
@@ -179,6 +181,31 @@ export class GridRenderer {
         theme.headerTextColor
       );
 
+      // Render navigation buttons when zoomed (always visible, but may be disabled)
+      if (layout.zoomedDay !== null && day.day === layout.zoomedDay) {
+        // Note: hover state will be rendered separately by WeeklySchedule
+        if (day.prevButtonBounds) {
+          this.renderNavigationButton(
+            day.prevButtonBounds,
+            'prev',
+            layout.orientation,
+            theme,
+            false,
+            day.prevButtonDisabled ?? false
+          );
+        }
+        if (day.nextButtonBounds) {
+          this.renderNavigationButton(
+            day.nextButtonBounds,
+            'next',
+            layout.orientation,
+            theme,
+            false,
+            day.nextButtonDisabled ?? false
+          );
+        }
+      }
+
       // Draw separator line after header (except last)
       if (layout.orientation === ScheduleOrientation.Vertical) {
         this.renderer.drawVerticalLine(
@@ -271,10 +298,94 @@ export class GridRenderer {
   }
 
   /**
+   * Render navigation button (prev/next)
+   */
+  renderNavigationButton(
+    bounds: Rect,
+    type: 'prev' | 'next',
+    _orientation: ScheduleOrientation,
+    theme: CanvasTheme,
+    isHovered: boolean,
+    isDisabled: boolean = false
+  ): void {
+    // Button background
+    const bgColor = isHovered && !isDisabled 
+      ? theme.hoverHighlightColor 
+      : theme.headerBackgroundColor;
+    this.renderer.fillRect(bounds, bgColor);
+
+    // Button border
+    this.renderer.strokeRect(
+      bounds,
+      theme.gridLineColor,
+      this.config.gridLineWidth
+    );
+
+    // Icon - buttons are always above/below, so use vertical arrows
+    const defaultPrevIcon = '↑';
+    const defaultNextIcon = '↓';
+    
+    const iconText = type === 'prev'
+      ? (this.config.icons?.prevDay ?? defaultPrevIcon)
+      : (this.config.icons?.nextDay ?? defaultNextIcon);
+
+    // Icon color - reduced opacity if disabled
+    const iconColor = isDisabled 
+      ? this.withAlpha(theme.headerTextColor, 0.4)
+      : theme.headerTextColor;
+
+    // Set font for icon (smaller size for 16x16 icon)
+    this.renderer.setFont({
+      ...this.config.headerFont,
+      size: 16,
+    });
+
+    // Draw icon centered
+    this.renderer.drawTextCentered(iconText, bounds, iconColor);
+  }
+
+  /**
+   * Helper to apply alpha to a color
+   */
+  private withAlpha(color: string, alpha: number): string {
+    // Simple implementation - assumes rgba format or converts hex
+    if (color.startsWith('rgba')) {
+      return color.replace(/,\s*[\d.]+\)$/, `, ${alpha})`);
+    } else if (color.startsWith('rgb')) {
+      return color.replace('rgb', 'rgba').replace(')', `, ${alpha})`);
+    } else if (color.startsWith('#')) {
+      // Convert hex to rgba
+      const r = parseInt(color.slice(1, 3), 16);
+      const g = parseInt(color.slice(3, 5), 16);
+      const b = parseInt(color.slice(5, 7), 16);
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+    return color;
+  }
+
+  /**
    * Render column/row highlight when hovering a day
    */
   renderDayColumnHighlight(day: DayLayout, theme: CanvasTheme): void {
     this.renderer.fillRect(day.contentBounds, theme.hoverHighlightColor);
+  }
+
+  /**
+   * Render navigation button hover highlight
+   */
+  renderNavigationButtonHover(
+    day: DayLayout,
+    buttonType: 'prev' | 'next',
+    theme: CanvasTheme,
+    _orientation: ScheduleOrientation
+  ): void {
+    const bounds = buttonType === 'prev' ? day.prevButtonBounds : day.nextButtonBounds;
+    const isDisabled = buttonType === 'prev' ? (day.prevButtonDisabled ?? false) : (day.nextButtonDisabled ?? false);
+    if (!bounds) return;
+
+    // Re-render button with hover state (but don't show hover if disabled)
+    // Note: orientation is not needed since buttons are always vertical now
+    this.renderNavigationButton(bounds, buttonType, ScheduleOrientation.Vertical, theme, !isDisabled, isDisabled);
   }
 }
 

@@ -119,7 +119,8 @@ export class LayoutEngine {
     canvasHeight: number,
     events: ScheduleEvent[],
     devicePixelRatio: number = 1,
-    zoomedDay: DayOfWeek | null = null
+    zoomedDay: DayOfWeek | null = null,
+    originalVisibleDays: DayOfWeek[] = []
   ): ScheduleLayout {
     const orientation = this.config.orientation ?? ScheduleOrientation.Vertical;
     const visibleDays = zoomedDay !== null 
@@ -135,7 +136,7 @@ export class LayoutEngine {
     const gridBounds = this.computeGridBounds(canvasWidth, canvasHeight, orientation);
 
     // Calculate day layouts
-    const days = this.computeDayLayouts(visibleDays, gridBounds, dayHeaderBounds, orientation);
+    const days = this.computeDayLayouts(visibleDays, gridBounds, dayHeaderBounds, orientation, zoomedDay, originalVisibleDays.length > 0 ? originalVisibleDays : (this.config.visibleDays ?? []));
     
     // Calculate time slot layouts
     const timeSlots = this.computeTimeSlotLayouts(timeSlotCount, gridBounds, timeAxisBounds, orientation);
@@ -274,51 +275,107 @@ export class LayoutEngine {
     visibleDays: DayOfWeek[],
     gridBounds: Rect,
     headerBounds: Rect,
-    orientation: ScheduleOrientation
+    orientation: ScheduleOrientation,
+    zoomedDay: DayOfWeek | null,
+    originalVisibleDays: DayOfWeek[]
   ): DayLayout[] {
     const dayCount = visibleDays.length;
     if (dayCount === 0) return [];
 
+    const BUTTON_HEIGHT = 40;
+
     return visibleDays.map((day, index) => {
-      if (orientation === ScheduleOrientation.Vertical) {
-        // Days as columns
-        const dayWidth = gridBounds.width / dayCount;
-        return {
-          day,
-          index,
-          headerBounds: {
-            x: headerBounds.x + index * dayWidth,
-            y: headerBounds.y,
-            width: dayWidth,
-            height: headerBounds.height,
-          },
-          contentBounds: {
-            x: gridBounds.x + index * dayWidth,
-            y: gridBounds.y,
-            width: dayWidth,
-            height: gridBounds.height,
-          },
+      const baseLayout = orientation === ScheduleOrientation.Vertical
+        ? {
+            // Days as columns
+            dayWidth: gridBounds.width / dayCount,
+            headerBounds: {
+              x: headerBounds.x + index * (gridBounds.width / dayCount),
+              y: headerBounds.y,
+              width: gridBounds.width / dayCount,
+              height: headerBounds.height,
+            },
+            contentBounds: {
+              x: gridBounds.x + index * (gridBounds.width / dayCount),
+              y: gridBounds.y,
+              width: gridBounds.width / dayCount,
+              height: gridBounds.height,
+            },
+          }
+        : {
+            // Days as rows
+            dayHeight: gridBounds.height / dayCount,
+            headerBounds: {
+              x: headerBounds.x,
+              y: headerBounds.y + index * (gridBounds.height / dayCount),
+              width: headerBounds.width,
+              height: gridBounds.height / dayCount,
+            },
+            contentBounds: {
+              x: gridBounds.x,
+              y: gridBounds.y + index * (gridBounds.height / dayCount),
+              width: gridBounds.width,
+              height: gridBounds.height / dayCount,
+            },
+          };
+
+      const result: DayLayout = {
+        day,
+        index,
+        headerBounds: baseLayout.headerBounds,
+        contentBounds: baseLayout.contentBounds,
+      };
+
+      // Calculate navigation button bounds when zoomed
+      // Divide the header space into: [prev button] [day label] [next button]
+      // Buttons are always visible, but disabled when there's no day to navigate to
+      if (zoomedDay !== null && day === zoomedDay) {
+        const currentIndex = originalVisibleDays.indexOf(day);
+        const hasPrev = currentIndex > 0;
+        const hasNext = currentIndex < originalVisibleDays.length - 1;
+
+        const headerX = baseLayout.headerBounds.x;
+        const headerY = baseLayout.headerBounds.y;
+        const headerWidth = baseLayout.headerBounds.width;
+        const headerHeight = baseLayout.headerBounds.height;
+        const buttonWidth = headerWidth;
+
+        // Always reserve space for both buttons (80px total)
+        const totalButtonsHeight = BUTTON_HEIGHT * 2;
+        const labelHeight = headerHeight - totalButtonsHeight;
+        
+        let currentY = headerY;
+
+        // Always create prev button bounds
+        result.prevButtonBounds = {
+          x: headerX,
+          y: currentY,
+          width: buttonWidth,
+          height: BUTTON_HEIGHT,
         };
-      } else {
-        // Days as rows
-        const dayHeight = gridBounds.height / dayCount;
-        return {
-          day,
-          index,
-          headerBounds: {
-            x: headerBounds.x,
-            y: headerBounds.y + index * dayHeight,
-            width: headerBounds.width,
-            height: dayHeight,
-          },
-          contentBounds: {
-            x: gridBounds.x,
-            y: gridBounds.y + index * dayHeight,
-            width: gridBounds.width,
-            height: dayHeight,
-          },
+        result.prevButtonDisabled = !hasPrev;
+        currentY += BUTTON_HEIGHT;
+
+        // Adjust day label bounds to fit between buttons
+        result.headerBounds = {
+          x: headerX,
+          y: currentY,
+          width: headerWidth,
+          height: labelHeight,
         };
+        currentY += labelHeight;
+
+        // Always create next button bounds
+        result.nextButtonBounds = {
+          x: headerX,
+          y: currentY,
+          width: buttonWidth,
+          height: BUTTON_HEIGHT,
+        };
+        result.nextButtonDisabled = !hasNext;
       }
+
+      return result;
     });
   }
 
