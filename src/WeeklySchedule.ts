@@ -17,7 +17,7 @@ import type {
   Rect,
   EventLayout,
 } from './canvas/types';
-import { LayoutEngine, type LayoutDimensions } from './canvas/LayoutEngine';
+import { LayoutEngine, type LayoutDimensions, ZOOMED_SLOT_SIZE_MULTIPLIER } from './canvas/LayoutEngine';
 import { CanvasRenderer } from './canvas/CanvasRenderer';
 import { GridRenderer, renderNowIndicator, type GridRendererConfig } from './canvas/GridRenderer';
 import { EventRenderer, type EventRendererConfig } from './canvas/EventRenderer';
@@ -1435,7 +1435,7 @@ export class WeeklySchedule {
         const endHour = this.config.endHour ?? 17;
         const interval = this.config.timeSlotInterval ?? TimeSlotInterval.SixtyMinutes;
         const slotCount = Math.ceil((endHour - startHour) * 60 / interval);
-        const effectiveMinSlotSize = dims.minSlotSize * 2.75;
+        const effectiveMinSlotSize = dims.minSlotSize * ZOOMED_SLOT_SIZE_MULTIPLIER;
         minWidth = slotCount * effectiveMinSlotSize;
       }
       // When not zoomed, minWidth stays 0 - slots will fit viewport
@@ -1570,7 +1570,14 @@ export class WeeklySchedule {
           const day = hitResult.event!.day;
           this.zoomToDay(day);
         } else if (hitResult.event) {
-          this.dispatchEvent('schedule-event-click', { event: hitResult.event });
+          // In normal mode, zoom to the event's day; in zoomed mode, dispatch click event
+          if (this.zoomedDay === null) {
+            // Normal mode: zoom to the day containing this event
+            this.zoomToDay(hitResult.event.day);
+          } else {
+            // Zoomed mode: dispatch click event for custom handling
+            this.dispatchEvent('schedule-event-click', { event: hitResult.event });
+          }
         }
         break;
         
@@ -1677,7 +1684,14 @@ export class WeeklySchedule {
         if (hitResult.eventLayout?.isOverflow) {
           this.zoomToDay(hitResult.event!.day);
         } else if (hitResult.event) {
-          this.dispatchEvent('schedule-event-click', { event: hitResult.event });
+          // In normal mode, zoom to the event's day; in zoomed mode, dispatch click event
+          if (this.zoomedDay === null) {
+            // Normal mode: zoom to the day containing this event
+            this.zoomToDay(hitResult.event.day);
+          } else {
+            // Zoomed mode: dispatch click event for custom handling
+            this.dispatchEvent('schedule-event-click', { event: hitResult.event });
+          }
         }
         break;
         

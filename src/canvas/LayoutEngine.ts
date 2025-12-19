@@ -80,6 +80,12 @@ const DEFAULT_DIMENSIONS: LayoutDimensions = {
 };
 
 /**
+ * Multiplier for scaling slot width/height in zoomed mode
+ * Increase this value to make zoomed columns/rows wider/taller
+ */
+export const ZOOMED_SLOT_SIZE_MULTIPLIER = 1.0; // 2.75
+
+/**
  * LayoutEngine computes pixel positions for all schedule elements
  */
 export class LayoutEngine {
@@ -412,7 +418,7 @@ export class LayoutEngine {
       } else {
         // Time slots as columns
         const baseSlotWidth = gridBounds.width / slotCount;
-        const minSlotWidth = zoomedDay !== null ? this.dimensions.minSlotSize * 2.75 : this.dimensions.minSlotSize;
+        const minSlotWidth = zoomedDay !== null ? this.dimensions.minSlotSize * ZOOMED_SLOT_SIZE_MULTIPLIER : this.dimensions.minSlotSize;
         const slotWidth = Math.max(baseSlotWidth, minSlotWidth);
         // Calculate x position: all slots have the same width, so we can multiply
         const x = gridBounds.x + i * slotWidth;
