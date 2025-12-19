@@ -54,19 +54,14 @@ const scheduleResult = WeeklySchedule.create(container, {
   startHour: 8,
   endHour: 18,
   orientation,
-  renderEvent: (event, context) => {
-    return `
-      <div class="event-title">${event.title}, ${event.startTime.toString()} - ${event.endTime.toString()}</div>
-      <div class="event-description">${event.description}</div>
-    `;
-  },
   overflowIndicatorFormat: (overflowEvents) => {
     if (overflowEvents <= 4) {
       return `+${overflowEvents} další`;
     }
 
     return `+${overflowEvents} dalších`;
-  }
+  },
+  showNowIndicator: true,
 }, events);
 
 if (!scheduleResult.success) {
@@ -93,14 +88,13 @@ btnVertical.addEventListener('click', () => updateOrientation(ScheduleOrientatio
 btnHorizontal.addEventListener('click', () => updateOrientation(ScheduleOrientation.Horizontal));
 btnReset.addEventListener('click', () => schedule.resetZoom());
 
-// Hover tooltip via custom events
+// Hover tooltip via custom events (canvas version uses mouse position)
 container.addEventListener('schedule-event-hover', (e: Event) => {
   const detail = (e as CustomEvent).detail;
   const ev = detail.event as typeof events[number];
-  const el = detail.element as HTMLElement;
   const time = `${ev.startTime.toString()} - ${ev.endTime.toString()}`;
   const html = `<strong>${ev.title}</strong>${time}<br/>${ev.description ?? ''}`;
-  showTooltip(el, html);
+  showTooltip(null, html); // null = use mouse position
 });
 
 container.addEventListener('schedule-event-hover-end', () => hideTooltip());
