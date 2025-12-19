@@ -43,6 +43,7 @@ const events: ScheduleEvent[] = [
   createEvent('4', DayOfWeek.Wednesday, 13, 0, 14, 0, 'Design Review', '#f59e0b', 'Review new designs'),
   createEvent('4a', DayOfWeek.Wednesday, 12, 30, 13, 30, 'Design Workshop', '#a855f7', 'Overlaps with review'),
   createEvent('4b', DayOfWeek.Wednesday, 13, 45, 14, 30, 'Follow-up', '#14b8a6', 'Overlaps with review'),
+  createEvent('4c', DayOfWeek.Wednesday, 13, 45, 14, 30, 'Follow-up 2', '#14b8a6', 'Overlaps with review, but not design workshop'),
 
   // Thursday - one event in the morning then a big cluster in the afternoon
   createEvent('55', DayOfWeek.Thursday, 10, 0, 11, 0, 'Team Meeting', '#6366f1', 'Weekly team meeting'),
@@ -52,19 +53,21 @@ const events: ScheduleEvent[] = [
   createEvent('5b', DayOfWeek.Thursday, 15, 30, 16, 30, 'Project Sync', '#22c55e', 'Overlaps with team meeting'),
   createEvent('5c', DayOfWeek.Thursday, 15, 30, 16, 30, 'Project Clink', '#22c88f', 'Overlaps with team meeting also'),
   createEvent('5d', DayOfWeek.Thursday, 15, 0, 16, 0, 'Team Meeting 2', '#6366f1', 'Weekly team meeting'),
+  createEvent('5e', DayOfWeek.Thursday, 15, 10, 16, 10, 'Stakeholder Update', '#e11d48', 'Another overlap to force +n'),
+  createEvent('5f', DayOfWeek.Thursday, 15, 20, 16, 20, 'QA Sync', '#0ea5e9', 'Another overlap'),
 
   // Friday
-  createEvent('6', DayOfWeek.Friday, 15, 0, 16, 0, 'Retro', '#ec4899', 'Sprint retrospective')
+  createEvent('6', DayOfWeek.Friday, 16, 15, 18, 15, 'Retro', '#ec4899', 'Sprint retrospective')
 ];
 
 // Initialize schedule component
 const app = document.querySelector<HTMLDivElement>('#app')!;
 
 app.innerHTML = `
-  <div style="padding: 20px; width: min(1280px, 100%); margin: 0 auto;">
+  <div style="padding: 20px; width: min(1280px, 100%);">
     <h1 style="margin-bottom: 20px; color: #111827;">Weekly Schedule Component</h1>
     <p style="margin-bottom: 20px; color: #6b7280;">Demo of the weekly schedule component with sample events.</p>
-    <div id="schedule-container" style="width: min(1280px, 100%); height: 600px; margin: 0 auto;"></div>
+    <div id="schedule-container" style="width: min(1280px, 100%); height: 600px; margin: 0 auto; box-sizing: border-box; overflow: hidden;"></div>
   </div>
 `;
 
