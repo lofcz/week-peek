@@ -500,12 +500,34 @@ export class WeeklySchedule {
   }
 
   /**
+   * Get the first event of a day (by start time)
+   * @param day - The day to find events for
+   * @returns The first event of the day, or undefined if no events
+   */
+  private getFirstEventOfDay(day: DayOfWeek): ScheduleEvent | undefined {
+    const dayEvents = this.events.filter(e => e.day === day);
+    if (dayEvents.length === 0) return undefined;
+    
+    // Sort by start time and return the first
+    return dayEvents.sort((a, b) => {
+      const aMinutes = a.startTime.hours * 60 + a.startTime.minutes;
+      const bMinutes = b.startTime.hours * 60 + b.startTime.minutes;
+      return aMinutes - bMinutes;
+    })[0];
+  }
+
+  /**
    * Zoom to a specific day with animated transition
    * @param day - The day to zoom to
-   * @param anchorEvent - Optional event to use as anchor for stable positioning
+   * @param anchorEvent - Optional event to use as anchor for stable positioning (defaults to first event of day)
    */
   zoomToDay(day: DayOfWeek, anchorEvent?: ScheduleEvent): void {
     if (this.zoomedDay === day) return;
+    
+    // If no anchor event provided, use the first event of the day
+    if (!anchorEvent) {
+      anchorEvent = this.getFirstEventOfDay(day);
+    }
 
     // Capture current layout state before transition
     this.captureLayoutSnapshot(true, day);
