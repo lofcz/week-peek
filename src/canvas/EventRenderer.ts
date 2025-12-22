@@ -67,6 +67,11 @@ const DEFAULT_CONFIG: EventRendererConfig = {
 };
 
 /**
+ * Text color for event content (used for all events)
+ */
+const EVENT_TEXT_COLOR = '#000000';
+
+/**
  * EventRenderer handles rendering of schedule events
  */
 export class EventRenderer {
@@ -298,8 +303,8 @@ export class EventRenderer {
     const { event } = eventLayout;
     const padding = this.config.padding;
     
-    // Always use black text for all events
-    const displayTextColor = '#000000';
+    // Always use configured text color for all events
+    const displayTextColor = EVENT_TEXT_COLOR;
     
     // Calculate content area
     const contentBounds: Rect = {
@@ -391,8 +396,8 @@ export class EventRenderer {
   private renderOverflowContent(eventLayout: EventLayout, bounds: Rect): void {
     const { event } = eventLayout;
     
-    // Always use black text
-    const displayTextColor = '#000000';
+    // Always use configured text color
+    const displayTextColor = EVENT_TEXT_COLOR;
     
     this.renderer.setFont({
       ...this.config.titleFont,
@@ -498,7 +503,7 @@ export class EventRenderer {
       startTimeStr,
       leftX,
       bounds.y + bounds.height / 2,
-      '#000000', // Black
+      EVENT_TEXT_COLOR,
       'left',
       'middle'
     );
@@ -521,7 +526,7 @@ export class EventRenderer {
           width: rightWidth,
           height: titleHeight,
         },
-        '#000000' // Black
+        EVENT_TEXT_COLOR
       );
       
       // Draw time range under title in smaller font (slightly less dark gray)
