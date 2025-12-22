@@ -169,12 +169,53 @@ export class GridRenderer {
     // Set font for time labels
     this.renderer.setFont(this.config.timeFont);
 
-    // Draw each time slot label
+    // Draw each time slot label (left-aligned) and tick marks at hour boundaries
     for (const slot of layout.timeSlots) {
-      this.renderer.drawTextCentered(
+      const isHourBoundary = slot.timeMinutes % 60 === 0;
+      
+      // Draw tick mark at hour boundaries (perpendicular to the time axis)
+      if (isHourBoundary) {
+        if (layout.orientation === ScheduleOrientation.Vertical) {
+          // Vertical orientation: time axis is vertical on left, draw horizontal tick marks
+          const tickX = layout.timeAxisBounds.x; // Left edge of time axis
+          const tickY = slot.labelBounds.y;
+          // Draw horizontal line extending from left edge into time axis
+          this.renderer.drawHorizontalLine(
+            tickY,
+            tickX,
+            tickX + 8, // Extend 8px into time axis
+            theme.gridLineMajorColor, // Use lighter gray for subtle tick marks
+            this.config.gridLineWidth
+          );
+        } else {
+          // Horizontal orientation: time axis is horizontal at top, draw vertical tick marks
+          const tickX = slot.labelBounds.x; // Left edge of slot (where hour starts)
+          const tickY = layout.timeAxisBounds.y; // Top edge of time axis
+          // Draw vertical line extending from top edge down into time axis
+          this.renderer.drawVerticalLine(
+            tickX,
+            tickY,
+            tickY + layout.timeAxisBounds.height, // Extend through full time axis height
+            theme.gridLineMajorColor, // Use lighter gray for subtle tick marks
+            this.config.gridLineWidth
+          );
+        }
+      }
+      
+      // Draw label left-aligned with padding
+      const padding = 4; // Padding from left edge
+      const textX = slot.labelBounds.x + padding;
+      const textY = layout.orientation === ScheduleOrientation.Vertical
+        ? slot.labelBounds.y + slot.labelBounds.height / 2
+        : slot.labelBounds.y + slot.labelBounds.height / 2;
+      
+      this.renderer.drawText(
         slot.label,
-        slot.labelBounds,
-        theme.timeTextColor
+        textX,
+        textY,
+        theme.timeTextColor,
+        'left',
+        'middle'
       );
     }
 
