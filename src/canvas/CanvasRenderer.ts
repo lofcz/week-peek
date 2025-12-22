@@ -365,6 +365,35 @@ export class CanvasRenderer {
     this.ctx.fillText(displayText, rect.x + padding, rect.y + padding);
   }
 
+  // ==================== Images ====================
+
+  /**
+   * Draw an image at the specified rectangle
+   * @param image - The image element to draw
+   * @param rect - Rectangle where the image should be drawn
+   */
+  drawImage(image: HTMLImageElement, rect: Rect): void {
+    if (!image.complete || image.naturalWidth === 0) {
+      return; // Don't draw if image isn't loaded
+    }
+    this.ctx.drawImage(image, rect.x, rect.y, rect.width, rect.height);
+  }
+
+  /**
+   * Draw an image centered at a point with a specific size
+   * @param image - The image element to draw
+   * @param x - X coordinate of center point
+   * @param y - Y coordinate of center point
+   * @param size - Size (width and height) of the image
+   */
+  drawImageCentered(image: HTMLImageElement, x: number, y: number, size: number): void {
+    if (!image.complete || image.naturalWidth === 0) {
+      return; // Don't draw if image isn't loaded
+    }
+    const halfSize = size / 2;
+    this.ctx.drawImage(image, x - halfSize, y - halfSize, size, size);
+  }
+
   // ==================== Effects ====================
 
   /**

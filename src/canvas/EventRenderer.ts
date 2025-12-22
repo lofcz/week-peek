@@ -4,6 +4,7 @@
 
 import type { EventLayout, ScheduleLayout, Rect, FontSpec, EventAnimationState } from './types';
 import { CanvasRenderer, darkenColor, withAlpha } from './CanvasRenderer';
+import { EventIcon } from '../types';
 
 /**
  * Configuration for event rendering
@@ -33,6 +34,8 @@ export interface EventRendererConfig {
   minHeightForDescription: number;
   /** Line height multiplier */
   lineHeight: number;
+  /** Spacing between icon and title */
+  iconSpacing: number;
 }
 
 const DEFAULT_CONFIG: EventRendererConfig = {
@@ -60,6 +63,7 @@ const DEFAULT_CONFIG: EventRendererConfig = {
   minHeightForTime: 40,
   minHeightForDescription: 80,
   lineHeight: 1.3,
+  iconSpacing: 4,
 };
 
 /**
@@ -68,6 +72,8 @@ const DEFAULT_CONFIG: EventRendererConfig = {
 export class EventRenderer {
   private renderer: CanvasRenderer;
   private config: EventRendererConfig;
+  private imageCache: Map<string, HTMLImageElement> = new Map();
+  private imageLoadPromises: Map<string, Promise<HTMLImageElement>> = new Map();
 
   constructor(renderer: CanvasRenderer, config: Partial<EventRendererConfig> = {}) {
     this.renderer = renderer;
@@ -79,6 +85,44 @@ export class EventRenderer {
    */
   updateConfig(config: Partial<EventRendererConfig>): void {
     this.config = { ...this.config, ...config };
+  }
+
+  /**
+   * Load an image from URL with caching
+   * Returns the cached image if available, otherwise loads and caches it
+   */
+  private loadImage(url: string): HTMLImageElement | null {
+    // Return cached image if available
+    const cached = this.imageCache.get(url);
+    if (cached && cached.complete && cached.naturalWidth > 0) {
+      return cached;
+    }
+
+    // If already loading, return null (will be rendered on next frame after load)
+    if (this.imageLoadPromises.has(url)) {
+      return null;
+    }
+
+    // Start loading
+    const img = new Image();
+    img.crossOrigin = 'anonymous'; // Allow CORS if needed
+    
+    const promise = new Promise<HTMLImageElement>((resolve, reject) => {
+      img.onload = () => {
+        this.imageCache.set(url, img);
+        this.imageLoadPromises.delete(url);
+        resolve(img);
+      };
+      img.onerror = () => {
+        this.imageLoadPromises.delete(url);
+        reject(new Error(`Failed to load image: ${url}`));
+      };
+    });
+
+    this.imageLoadPromises.set(url, promise);
+    img.src = url;
+
+    return null; // Image not loaded yet
   }
 
   /**
@@ -167,6 +211,78 @@ export class EventRenderer {
   }
 
   /**
+   * Render an event icon and return its width
+   * @param icon - The icon to render
+   * @param x - X position for icon
+   * @param y - Y position (same as title's yOffset, which is contentBounds.y)
+   * @param textColor - Color to use for font icons
+   * @param defaultSize - Default size if icon doesn't specify one
+   * @returns Width of the rendered icon (0 if not rendered)
+   */
+  private renderIcon(
+    icon: EventIcon,
+    x: number,
+    y: number,
+    textColor: string,
+    defaultSize: number
+  ): number {
+    const iconSize = icon.size ?? defaultSize;
+
+    switch (icon.type) {
+      case 'font': {
+        // Render icon font character
+        // Use the font family from icon config, or fall back to title font
+        // Material Symbols font name should match CSS exactly: 'Material Symbols Outlined'
+        let fontFamily = icon.fontFamily ?? this.config.titleFont.family;
+        
+        // Normalize Material Symbols font names to the CSS font name
+        if (fontFamily === 'material-symbols-outlined' || fontFamily.includes('Material Symbols')) {
+          fontFamily = 'Material Symbols Outlined';
+        }
+        
+        this.renderer.setFont({
+          family: fontFamily,
+          size: iconSize,
+          weight: this.config.titleFont.weight,
+        });
+        // Draw icon aligned to the title's visual center
+        // Use the same alignment as the title text
+        this.renderer.drawText(icon.content, x, y, textColor, 'left', 'top');
+        return iconSize;
+      }
+
+      case 'image': {
+        // Render preloaded image
+        if (icon.image.complete && icon.image.naturalWidth > 0) {
+          this.renderer.drawImage(icon.image, {
+            x,
+            y,
+            width: iconSize,
+            height: iconSize,
+          });
+          return iconSize;
+        }
+        return 0; // Image not loaded yet
+      }
+
+      case 'url': {
+        // Load and render image from URL
+        const loadedImage = this.loadImage(icon.url);
+        if (loadedImage) {
+          this.renderer.drawImage(loadedImage, {
+            x,
+            y,
+            width: iconSize,
+            height: iconSize,
+          });
+          return iconSize;
+        }
+        return 0; // Image not loaded yet
+      }
+    }
+  }
+
+  /**
    * Render event content (title, time, description)
    */
   private renderEventContent(eventLayout: EventLayout, bounds: Rect): void {
@@ -184,21 +300,37 @@ export class EventRenderer {
     if (contentBounds.width <= 0 || contentBounds.height <= 0) return;
 
     let yOffset = contentBounds.y;
+    let xOffset = contentBounds.x;
+
+    // Render icon if present
+    let iconWidth = 0;
+    if (event.icon) {
+      const iconSize = event.icon.size ?? this.config.titleFont.size;
+      
+      iconWidth = this.renderIcon(event.icon, xOffset, yOffset, textColor, iconSize);
+      
+      if (iconWidth > 0) {
+        xOffset += iconWidth + this.config.iconSpacing;
+      }
+    }
 
     // Render title
     this.renderer.setFont(this.config.titleFont);
     const titleHeight = this.config.titleFont.size * this.config.lineHeight;
+    const titleWidth = contentBounds.width - (iconWidth > 0 ? iconWidth + this.config.iconSpacing : 0);
     
-    this.renderer.drawTextEllipsis(
-      event.title,
-      {
-        x: contentBounds.x,
-        y: yOffset,
-        width: contentBounds.width,
-        height: titleHeight,
-      },
-      textColor
-    );
+    if (titleWidth > 0) {
+      this.renderer.drawTextEllipsis(
+        event.title,
+        {
+          x: xOffset,
+          y: yOffset,
+          width: titleWidth,
+          height: titleHeight,
+        },
+        textColor
+      );
+    }
     yOffset += titleHeight;
 
     // Render time if there's enough space

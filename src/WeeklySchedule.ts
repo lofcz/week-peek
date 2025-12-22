@@ -1141,15 +1141,24 @@ export class WeeklySchedule {
    */
   private renderDayHeadersDOM(): void {
     const visibleDays = this.zoomedDay ? [this.zoomedDay] : (this.config.visibleDays ?? []);
-    const theme = this.renderer.getTheme();
     
     // Update intersection div with reset zoom button when zoomed
     this.intersectionDiv.innerHTML = '';
     if (this.zoomedDay !== null) {
       const resetButton = document.createElement('button');
       resetButton.className = 'schedule-reset-zoom-button';
-      resetButton.textContent = this.config.icons?.resetZoom ?? '⟲';
       resetButton.setAttribute('aria-label', 'Reset zoom');
+      
+      const iconText = this.config.icons?.resetZoom ?? '⟲';
+      if (this.config.icons?.className) {
+        const iconSpan = document.createElement('span');
+        iconSpan.className = this.config.icons.className;
+        iconSpan.textContent = iconText;
+        resetButton.appendChild(iconSpan);
+      } else {
+        resetButton.textContent = iconText;
+      }
+      
       resetButton.addEventListener('click', (e) => {
         e.stopPropagation();
         this.resetZoom();
@@ -1175,7 +1184,16 @@ export class WeeklySchedule {
         const prevButton = document.createElement('button');
         prevButton.className = 'schedule-nav-button schedule-nav-button-prev';
         prevButton.disabled = prevDisabled;
-        prevButton.textContent = this.config.icons?.prevDay ?? '↑';
+        
+        const prevIconText = this.config.icons?.prevDay ?? '↑';
+        if (this.config.icons?.className) {
+          const iconSpan = document.createElement('span');
+          iconSpan.className = this.config.icons.className;
+          iconSpan.textContent = prevIconText;
+          prevButton.appendChild(iconSpan);
+        } else {
+          prevButton.textContent = prevIconText;
+        }
         
         if (!prevDisabled) {
           prevButton.addEventListener('click', (e) => {
@@ -1213,7 +1231,16 @@ export class WeeklySchedule {
         const nextButton = document.createElement('button');
         nextButton.className = 'schedule-nav-button schedule-nav-button-next';
         nextButton.disabled = nextDisabled;
-        nextButton.textContent = this.config.icons?.nextDay ?? '↓';
+        
+        const nextIconText = this.config.icons?.nextDay ?? '↓';
+        if (this.config.icons?.className) {
+          const iconSpan = document.createElement('span');
+          iconSpan.className = this.config.icons.className;
+          iconSpan.textContent = nextIconText;
+          nextButton.appendChild(iconSpan);
+        } else {
+          nextButton.textContent = nextIconText;
+        }
         
         if (!nextDisabled) {
           nextButton.addEventListener('click', (e) => {

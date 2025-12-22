@@ -165,6 +165,14 @@ export function getDayName(
 }
 
 /**
+ * Icon configuration for events - discriminated union supporting different icon types
+ */
+export type EventIcon =
+  | { type: 'font'; content: string; fontFamily?: string; size?: number }
+  | { type: 'image'; image: HTMLImageElement; size?: number }
+  | { type: 'url'; url: string; size?: number };
+
+/**
  * A recurring event that appears on a specific day of the week at a specific time.
  * This is NOT tied to any calendar date - it represents a pattern (e.g., "every Monday at 10:00").
  */
@@ -186,6 +194,12 @@ export interface ScheduleEvent {
   title: string;
 
   description?: string;
+
+  /**
+   * Optional icon to display before the title
+   * Supports icon fonts, preloaded images, or image URLs
+   */
+  icon?: EventIcon;
 
   /**
    * Optional inline CSS styles for the event element
