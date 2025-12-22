@@ -144,9 +144,7 @@ export class WeeklySchedule {
   private contentWidth: number = 0;
   private contentHeight: number = 0;
   private isProgrammaticScroll: boolean = false;
-  // Target scroll position to persist during zoom (browser may reset scroll asynchronously)
-  private targetScrollX: number | null = null;
-  
+
   // Rendering components
   private renderer: CanvasRenderer;
   private gridRenderer: GridRenderer;
@@ -509,9 +507,6 @@ export class WeeklySchedule {
   zoomToDay(day: DayOfWeek, anchorEvent?: ScheduleEvent): void {
     if (this.zoomedDay === day) return;
 
-    // Clear target scroll when navigating days (will be set again if anchor is provided)
-    this.targetScrollX = null;
-
     // Capture current layout state before transition
     this.captureLayoutSnapshot(true, day);
 
@@ -530,7 +525,10 @@ export class WeeklySchedule {
     this.invalidateLayout();
     this.computeLayout();
     
-    // Calculate and apply scroll offset to keep anchor event at same screen position
+    // Calculate scroll offset to keep anchor event at same screen position
+    // We'll apply it AFTER all DOM/canvas changes are complete to avoid browser reset
+    let pendingScrollOffset: number | null = null;
+    
     if (anchorEvent && this.layout && this.zoomTransition) {
       const isHorizontal = this.config.orientation === ScheduleOrientation.Horizontal;
       
@@ -548,35 +546,14 @@ export class WeeklySchedule {
           
           // Scroll offset = difference between new and old canvas positions
           // This keeps the event at the same visual screen position
-          const scrollOffset = newEventX - oldEventX;
+          pendingScrollOffset = newEventX - oldEventX;
           
-          // Apply scroll offset (clamped to valid range)
+          // Pre-calculate scroll offset for animation interpolation
+          // This needs to be set now so animations render correctly from the first frame
           const maxScroll = Math.max(0, this.scrollContainer.scrollWidth - this.scrollContainer.clientWidth);
-          const targetScroll = Math.max(0, Math.min(scrollOffset, maxScroll));
-          
-          // Suppress scroll event handler to prevent race condition
-          this.isProgrammaticScroll = true;
-          
-          this.scrollContainer.scrollLeft = targetScroll;
-          
-          // Read back the actual scroll position (browser may clamp it)
-          const actualScroll = this.scrollContainer.scrollLeft;
-          this.scrollX = actualScroll;
-          this.scrollY = this.scrollContainer.scrollTop;
-          
-          // Store target scroll position - browser may asynchronously reset scroll, we'll restore it
-          this.targetScrollX = actualScroll;
-          
-          // Complete the scroll offset calculation for animation
-          // scrollOffsetX was initialized as -oldScrollX (which is 0 in week view)
-          // Now add newScrollX to get the total offset for animation interpolation
-          this.zoomTransition.scrollOffsetX += actualScroll;
+          const targetScroll = Math.max(0, Math.min(pendingScrollOffset, maxScroll));
+          this.zoomTransition.scrollOffsetX += targetScroll;
           this.zoomTransition.scrollOffsetY += this.scrollY;
-          
-          // Re-enable scroll event handler after next frame
-          requestAnimationFrame(() => {
-            this.isProgrammaticScroll = false;
-          });
         }
       }
     }
@@ -591,6 +568,23 @@ export class WeeklySchedule {
     // Immediately render to avoid black flash after canvas resize
     this.renderFrame();
     
+    // Apply scroll offset AFTER all DOM and canvas changes are complete
+    // This prevents the browser from resetting scroll during layout recalculation
+    if (pendingScrollOffset !== null) {
+      const maxScroll = Math.max(0, this.scrollContainer.scrollWidth - this.scrollContainer.clientWidth);
+      const targetScroll = Math.max(0, Math.min(pendingScrollOffset, maxScroll));
+      
+      this.isProgrammaticScroll = true;
+      this.scrollContainer.scrollLeft = targetScroll;
+      this.scrollX = this.scrollContainer.scrollLeft;
+      this.scrollY = this.scrollContainer.scrollTop;
+      
+      // Re-enable scroll event handler after next frame
+      requestAnimationFrame(() => {
+        this.isProgrammaticScroll = false;
+      });
+    }
+    
     this.dispatchEvent('schedule-day-zoom', { day });
   }
 
@@ -604,7 +598,6 @@ export class WeeklySchedule {
     this.captureLayoutSnapshot(false, null);
 
     this.zoomedDay = null;
-    this.targetScrollX = null; // Clear target scroll when unzooming
     this.config.visibleDays = [...this.originalVisibleDays];
     this.layoutEngine.updateConfig({ visibleDays: this.originalVisibleDays });
     
@@ -1488,35 +1481,8 @@ export class WeeklySchedule {
       return;
     }
     
-    // Detect and restore scroll position if browser reset it unexpectedly during zoom
-    // This handles async scroll resets caused by DOM/layout changes
-    // Only restore if scroll was reset to 0 (or near 0) when we expect it to be at targetScrollX
-    // This prevents interference with normal user scrolling
-    if (this.zoomedDay !== null && this.targetScrollX !== null && this.targetScrollX > 10) {
-      // Only restore if scroll was reset to near 0 (within 10px) when we expect it to be much further
-      if (currentScrollLeft < 10 && Math.abs(currentScrollLeft - this.targetScrollX) > 10) {
-        // Restore scroll position
-        this.isProgrammaticScroll = true;
-        this.scrollContainer.scrollLeft = this.targetScrollX;
-        this.scrollX = this.scrollContainer.scrollLeft;
-        this.scrollY = this.scrollContainer.scrollTop;
-        
-        // Reset flag after this frame
-        requestAnimationFrame(() => {
-          this.isProgrammaticScroll = false;
-        });
-        return;
-      }
-    }
-    
     this.scrollX = currentScrollLeft;
     this.scrollY = this.scrollContainer.scrollTop;
-    
-    // Clear targetScrollX on user scroll - user has taken control
-    // This prevents the scroll reset detection from interfering with manual scrolling
-    if (this.targetScrollX !== null) {
-      this.targetScrollX = null;
-    }
     
     this.scheduleRender();
   }
