@@ -590,9 +590,8 @@ export class WeeklySchedule {
         const oldSnapshot = this.zoomTransition.fromSnapshots.get(anchorEvent.id);
         
         if (eventLayout && oldSnapshot) {
-          // Old position of event's left edge in canvas coordinates (before zoom)
+          // Case 1: Zooming from unzoomed to zoomed (same day) - keep event at same screen position
           const oldEventX = oldSnapshot.bounds.x;
-          // New position of event's left edge in canvas coordinates (after zoom)
           const newEventX = eventLayout.bounds.x;
           
           // Scroll offset = difference between new and old canvas positions
@@ -601,6 +600,18 @@ export class WeeklySchedule {
           
           // Pre-calculate scroll offset for animation interpolation
           // This needs to be set now so animations render correctly from the first frame
+          const maxScroll = Math.max(0, this.scrollContainer.scrollWidth - this.scrollContainer.clientWidth);
+          const targetScroll = Math.max(0, Math.min(pendingScrollOffset, maxScroll));
+          this.zoomTransition.scrollOffsetX += targetScroll;
+          this.zoomTransition.scrollOffsetY += this.scrollY;
+        } else if (eventLayout && !oldSnapshot) {
+          // Case 2: Navigating between days in zoomed mode - scroll to show the first event
+          // Scroll so the event's left edge is visible (with small padding from left edge)
+          const eventX = eventLayout.bounds.x;
+          const padding = 20; // Small padding from left edge
+          pendingScrollOffset = Math.max(0, eventX - padding);
+          
+          // Pre-calculate scroll offset for animation interpolation
           const maxScroll = Math.max(0, this.scrollContainer.scrollWidth - this.scrollContainer.clientWidth);
           const targetScroll = Math.max(0, Math.min(pendingScrollOffset, maxScroll));
           this.zoomTransition.scrollOffsetX += targetScroll;
@@ -628,6 +639,17 @@ export class WeeklySchedule {
       this.isProgrammaticScroll = true;
       this.scrollContainer.scrollLeft = targetScroll;
       this.scrollX = this.scrollContainer.scrollLeft;
+      this.scrollY = this.scrollContainer.scrollTop;
+      
+      // Re-enable scroll event handler after next frame
+      requestAnimationFrame(() => {
+        this.isProgrammaticScroll = false;
+      });
+    } else if (!anchorEvent) {
+      // No anchor event (no events on this day) - reset scroll to 0
+      this.isProgrammaticScroll = true;
+      this.scrollContainer.scrollLeft = 0;
+      this.scrollX = 0;
       this.scrollY = this.scrollContainer.scrollTop;
       
       // Re-enable scroll event handler after next frame
