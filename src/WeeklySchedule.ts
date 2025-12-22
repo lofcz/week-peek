@@ -131,6 +131,7 @@ export class WeeklySchedule {
   private allEvents: ScheduleEvent[];
   private events: ScheduleEvent[];
   private currentFilter: ((event: ScheduleEvent) => boolean) | null = null;
+  private highlightPredicate: ((event: ScheduleEvent) => boolean) | null = null;
   
   // State
   private zoomedDay: DayOfWeek | null = null;
@@ -480,6 +481,39 @@ export class WeeklySchedule {
   clearFilter(): Result<void, Error> {
     this.currentFilter = null;
     this.events = [...this.allEvents];
+    this.invalidateLayout();
+    this.scheduleRender();
+    
+    return { success: true, data: undefined };
+  }
+
+  /**
+   * Highlight events that match the predicate by reducing opacity of non-matching events.
+   * Events that pass the predicate are rendered at full opacity, making them stand out.
+   * @param predicate - Function that returns true for events to highlight
+   * @returns Result indicating success or failure
+   */
+  highlightEvents(predicate: (event: ScheduleEvent) => boolean): Result<void, Error> {
+    if (typeof predicate !== 'function') {
+      return {
+        success: false,
+        error: new Error('Predicate must be a function'),
+      };
+    }
+
+    this.highlightPredicate = predicate;
+    this.invalidateLayout();
+    this.scheduleRender();
+    
+    return { success: true, data: undefined };
+  }
+
+  /**
+   * Stop highlighting and restore all events to normal opacity.
+   * @returns Result indicating success or failure
+   */
+  stopHighlighting(): Result<void, Error> {
+    this.highlightPredicate = null;
     this.invalidateLayout();
     this.scheduleRender();
     
@@ -1293,7 +1327,7 @@ export class WeeklySchedule {
 
     // Render events with animated values
     const hoveredId = this.interactionState.hoveredEvent?.id;
-    this.eventRenderer.render(animatedLayout, hoveredId);
+    this.eventRenderer.render(animatedLayout, hoveredId, this.highlightPredicate);
 
     // Render "now" indicator if enabled
     if (this.config.showNowIndicator) {
@@ -1377,7 +1411,7 @@ export class WeeklySchedule {
     }
     
     // Render events in mobile style
-    this.eventRenderer.renderMobile(this.layout);
+    this.eventRenderer.renderMobile(this.layout, this.highlightPredicate);
   }
 
   /**

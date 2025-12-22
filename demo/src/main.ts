@@ -299,11 +299,22 @@ container.addEventListener('schedule-event-hover', (e: Event) => {
 
 container.addEventListener('schedule-event-hover-end', () => hideTooltip());
 
-// Click handler demo
+// Track currently highlighted event
+let highlightedEventId: string | null = null;
+
+// Click handler demo - highlight clicked event
 container.addEventListener('schedule-event-click', (e: Event) => {
   const detail = (e as CustomEvent).detail;
   const ev = detail.event as typeof events[number];
   console.log('Event clicked:', ev);
-  const time = `${ev.startTime.toString()} - ${ev.endTime.toString()}`;
-  alert(`Event: ${ev.title}\nTime: ${time}\nDay: ${DayOfWeek[ev.day]}\n${ev.description ?? ''}`);
+  
+  // If clicking the same event that's already highlighted, stop highlighting
+  if (highlightedEventId === ev.id) {
+    schedule.stopHighlighting();
+    highlightedEventId = null;
+  } else {
+    // Highlight the clicked event
+    highlightedEventId = ev.id;
+    schedule.highlightEvents((event) => event.id === ev.id);
+  }
 });

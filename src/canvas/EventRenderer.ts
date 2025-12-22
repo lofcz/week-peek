@@ -4,7 +4,7 @@
 
 import type { EventLayout, ScheduleLayout, Rect, FontSpec, EventAnimationState } from './types';
 import { CanvasRenderer, darkenColor, withAlpha } from './CanvasRenderer';
-import { EventIcon } from '../types';
+import { EventIcon, ScheduleEvent } from '../types';
 
 /**
  * Configuration for event rendering
@@ -128,7 +128,11 @@ export class EventRenderer {
   /**
    * Render all events
    */
-  render(layout: ScheduleLayout, hoveredEventId?: string): void {
+  render(
+    layout: ScheduleLayout,
+    hoveredEventId?: string,
+    highlightPredicate?: ((event: ScheduleEvent) => boolean) | null
+  ): void {
     // Sort events by size (larger first) for better overlap handling
     const sortedEvents = [...layout.events].sort((a, b) => {
       const areaA = a.bounds.width * a.bounds.height;
@@ -142,7 +146,15 @@ export class EventRenderer {
 
     for (const eventLayout of sortedEvents) {
       const isHovered = eventLayout.event.id === hoveredEventId;
-      this.renderEvent(eventLayout, isHovered);
+      
+      // Check if event should be highlighted
+      const isHighlighted = highlightPredicate
+        ? highlightPredicate(eventLayout.event)
+        : true;
+      
+      // Pass highlight opacity to renderEvent so it combines with animation opacity
+      const highlightOpacity = isHighlighted ? 1.0 : 0.3;
+      this.renderEvent(eventLayout, isHovered, highlightOpacity);
     }
 
     this.renderer.restore();
@@ -151,7 +163,7 @@ export class EventRenderer {
   /**
    * Render a single event
    */
-  renderEvent(eventLayout: EventLayout, isHovered: boolean = false): void {
+  renderEvent(eventLayout: EventLayout, isHovered: boolean = false, highlightOpacity: number = 1.0): void {
     const { bounds, backgroundColor, opacity, scale, isOverflow } = eventLayout;
     const theme = this.renderer.getTheme();
 
@@ -170,9 +182,10 @@ export class EventRenderer {
       };
     }
 
-    // Set opacity
-    if (opacity < 1) {
-      this.renderer.setAlpha(opacity);
+    // Combine animation opacity with highlight opacity
+    const combinedOpacity = opacity * highlightOpacity;
+    if (combinedOpacity < 1) {
+      this.renderer.setAlpha(combinedOpacity);
     }
 
     // Draw shadow if enabled
@@ -205,7 +218,7 @@ export class EventRenderer {
     }
 
     // Reset opacity
-    if (opacity < 1) {
+    if (combinedOpacity < 1) {
       this.renderer.resetAlpha();
     }
   }
@@ -418,13 +431,21 @@ export class EventRenderer {
   /**
    * Render all events in mobile layout (list style)
    */
-  renderMobile(layout: ScheduleLayout): void {
+  renderMobile(
+    layout: ScheduleLayout,
+    highlightPredicate?: ((event: ScheduleEvent) => boolean) | null
+  ): void {
     // Clip to grid bounds
     this.renderer.save();
     this.renderer.clip(layout.gridBounds);
 
     for (const eventLayout of layout.events) {
-      this.renderMobileEvent(eventLayout);
+      // Check if event should be highlighted
+      const isHighlighted = highlightPredicate
+        ? highlightPredicate(eventLayout.event)
+        : true;
+      
+      this.renderMobileEvent(eventLayout, isHighlighted);
     }
 
     this.renderer.restore();
@@ -434,14 +455,20 @@ export class EventRenderer {
    * Render a single event in mobile list style
    * Format: [start time] [title with time range below]
    */
-  renderMobileEvent(eventLayout: EventLayout): void {
-    const { event, bounds, backgroundColor, textColor } = eventLayout;
-    const theme = this.renderer.getTheme();
+  renderMobileEvent(eventLayout: EventLayout, isHighlighted: boolean = true): void {
+    const { event, bounds, backgroundColor, opacity } = eventLayout;
     
     const BORDER_RADIUS = 6;
     const PADDING = 12;
     const TIME_WIDTH = 60;
     const GAP = 6; // Reduced gap between start time and title
+    
+    // Combine animation opacity with highlight opacity
+    const highlightOpacity = isHighlighted ? 1.0 : 0.3;
+    const combinedOpacity = opacity * highlightOpacity;
+    if (combinedOpacity < 1) {
+      this.renderer.setAlpha(combinedOpacity);
+    }
     
     // Draw background with full opacity
     this.renderer.fillRoundedRect(bounds, backgroundColor, BORDER_RADIUS);
@@ -505,6 +532,11 @@ export class EventRenderer {
         },
         '#666666' // Slightly less dark gray
       );
+    }
+    
+    // Reset alpha after rendering if combined opacity was less than 1
+    if (combinedOpacity < 1) {
+      this.renderer.resetAlpha();
     }
   }
 }
