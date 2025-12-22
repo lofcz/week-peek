@@ -68,6 +68,10 @@ interface ZoomTransition {
   canvasWidth: number;
   /** Canvas height for calculating slide distances */
   canvasHeight: number;
+  /** Scroll offset delta to compensate for scroll changes during zoom */
+  scrollOffsetX: number;
+  /** Scroll offset delta for Y axis */
+  scrollOffsetY: number;
 }
 
 /**
@@ -139,6 +143,9 @@ export class WeeklySchedule {
   private scrollY: number = 0;
   private contentWidth: number = 0;
   private contentHeight: number = 0;
+  private isProgrammaticScroll: boolean = false;
+  // Target scroll position to persist during zoom (browser may reset scroll asynchronously)
+  private targetScrollX: number | null = null;
   
   // Rendering components
   private renderer: CanvasRenderer;
@@ -496,10 +503,15 @@ export class WeeklySchedule {
 
   /**
    * Zoom to a specific day with animated transition
+   * @param day - The day to zoom to
+   * @param anchorEvent - Optional event to use as anchor for stable positioning
    */
-  zoomToDay(day: DayOfWeek): void {
+  zoomToDay(day: DayOfWeek, anchorEvent?: ScheduleEvent): void {
     if (this.zoomedDay === day) return;
-    
+
+    // Clear target scroll when navigating days (will be set again if anchor is provided)
+    this.targetScrollX = null;
+
     // Capture current layout state before transition
     this.captureLayoutSnapshot(true, day);
 
@@ -517,6 +529,57 @@ export class WeeklySchedule {
     // Compute new layout for the transition target
     this.invalidateLayout();
     this.computeLayout();
+    
+    // Calculate and apply scroll offset to keep anchor event at same screen position
+    if (anchorEvent && this.layout && this.zoomTransition) {
+      const isHorizontal = this.config.orientation === ScheduleOrientation.Horizontal;
+      
+      if (isHorizontal) {
+        // Find the event in the new layout
+        const eventLayout = this.layout.events.find(e => e.event.id === anchorEvent.id);
+        // Find the event's OLD position from the snapshot
+        const oldSnapshot = this.zoomTransition.fromSnapshots.get(anchorEvent.id);
+        
+        if (eventLayout && oldSnapshot) {
+          // Old position of event's left edge in canvas coordinates (before zoom)
+          const oldEventX = oldSnapshot.bounds.x;
+          // New position of event's left edge in canvas coordinates (after zoom)
+          const newEventX = eventLayout.bounds.x;
+          
+          // Scroll offset = difference between new and old canvas positions
+          // This keeps the event at the same visual screen position
+          const scrollOffset = newEventX - oldEventX;
+          
+          // Apply scroll offset (clamped to valid range)
+          const maxScroll = Math.max(0, this.scrollContainer.scrollWidth - this.scrollContainer.clientWidth);
+          const targetScroll = Math.max(0, Math.min(scrollOffset, maxScroll));
+          
+          // Suppress scroll event handler to prevent race condition
+          this.isProgrammaticScroll = true;
+          
+          this.scrollContainer.scrollLeft = targetScroll;
+          
+          // Read back the actual scroll position (browser may clamp it)
+          const actualScroll = this.scrollContainer.scrollLeft;
+          this.scrollX = actualScroll;
+          this.scrollY = this.scrollContainer.scrollTop;
+          
+          // Store target scroll position - browser may asynchronously reset scroll, we'll restore it
+          this.targetScrollX = actualScroll;
+          
+          // Complete the scroll offset calculation for animation
+          // scrollOffsetX was initialized as -oldScrollX (which is 0 in week view)
+          // Now add newScrollX to get the total offset for animation interpolation
+          this.zoomTransition.scrollOffsetX += actualScroll;
+          this.zoomTransition.scrollOffsetY += this.scrollY;
+          
+          // Re-enable scroll event handler after next frame
+          requestAnimationFrame(() => {
+            this.isProgrammaticScroll = false;
+          });
+        }
+      }
+    }
     
     if (this.zoomTransition && this.layout) {
       this.zoomTransition.toLayout = this.layout;
@@ -541,6 +604,7 @@ export class WeeklySchedule {
     this.captureLayoutSnapshot(false, null);
 
     this.zoomedDay = null;
+    this.targetScrollX = null; // Clear target scroll when unzooming
     this.config.visibleDays = [...this.originalVisibleDays];
     this.layoutEngine.updateConfig({ visibleDays: this.originalVisibleDays });
     
@@ -598,6 +662,11 @@ export class WeeklySchedule {
       }
     }
     
+    // Store current scroll position - will be used to calculate scroll delta for animation
+    // This ensures events animate from their visual screen position, not their canvas position
+    const oldScrollX = this.scrollX;
+    const oldScrollY = this.scrollY;
+    
     this.zoomTransition = {
       progress: 0,
       startTime: performance.now(),
@@ -609,6 +678,10 @@ export class WeeklySchedule {
       targetDay,
       canvasWidth: width,
       canvasHeight: height,
+      // Initialize with negative old scroll - will add new scroll after it's set
+      // This gives us (newScroll - oldScroll) which is the offset to apply to fromSnapshots
+      scrollOffsetX: -oldScrollX,
+      scrollOffsetY: -oldScrollY,
     };
   }
 
@@ -923,7 +996,9 @@ export class WeeklySchedule {
    * Schedule a render on next animation frame
    */
   private scheduleRender(): void {
-    if (this.needsRender) return;
+    if (this.needsRender) {
+      return;
+    }
     
     this.needsRender = true;
     this.rafId = requestAnimationFrame(() => {
@@ -1187,7 +1262,15 @@ export class WeeklySchedule {
         
         if (fromSnapshot) {
           // Event exists in both states - animate position smoothly
-          animatedLayout.bounds = this.lerpRect(fromSnapshot.bounds, eventLayout.bounds, progress);
+          // Apply scroll offset to fromSnapshot to compensate for scroll changes during zoom
+          // This ensures events animate from their visual screen position, not canvas position
+          const adjustedFromBounds: Rect = {
+            x: fromSnapshot.bounds.x + transition.scrollOffsetX,
+            y: fromSnapshot.bounds.y + transition.scrollOffsetY,
+            width: fromSnapshot.bounds.width,
+            height: fromSnapshot.bounds.height,
+          };
+          animatedLayout.bounds = this.lerpRect(adjustedFromBounds, eventLayout.bounds, progress);
           animatedLayout.opacity = this.lerp(fromSnapshot.opacity, eventLayout.opacity, progress);
         } else {
           // Event is new (appearing) - calculate entry animation based on day position
@@ -1201,9 +1284,13 @@ export class WeeklySchedule {
             
             if (fromDaySnapshot) {
               // Calculate where this event would have been in the original layout
+              // Apply scroll offset to fromDaySnapshot to compensate for scroll changes
+              const adjustedDayX = fromDaySnapshot.contentBounds.x + transition.scrollOffsetX;
+              const adjustedDayY = fromDaySnapshot.contentBounds.y + transition.scrollOffsetY;
+              
               const originalDayCenter = isVertical 
-                ? fromDaySnapshot.contentBounds.x + fromDaySnapshot.contentBounds.width / 2
-                : fromDaySnapshot.contentBounds.y + fromDaySnapshot.contentBounds.height / 2;
+                ? adjustedDayX + fromDaySnapshot.contentBounds.width / 2
+                : adjustedDayY + fromDaySnapshot.contentBounds.height / 2;
               
               const targetCenter = isVertical
                 ? eventLayout.bounds.x + eventLayout.bounds.width / 2
@@ -1249,6 +1336,10 @@ export class WeeklySchedule {
                                this.events.find(e => e.id === eventId);
           
           if (originalEvent) {
+            // Apply scroll offset to snapshot bounds to compensate for scroll changes
+            const adjustedBoundsX = snapshot.bounds.x + transition.scrollOffsetX;
+            const adjustedBoundsY = snapshot.bounds.y + transition.scrollOffsetY;
+            
             // Calculate slide direction based on day position relative to target
             let slideOffset = 0;
             
@@ -1274,8 +1365,8 @@ export class WeeklySchedule {
                   : targetDayLayout.contentBounds.y + targetDayLayout.contentBounds.height / 2;
                 
                 const snapshotCenter = isVertical
-                  ? snapshot.bounds.x + snapshot.bounds.width / 2
-                  : snapshot.bounds.y + snapshot.bounds.height / 2;
+                  ? adjustedBoundsX + snapshot.bounds.width / 2
+                  : adjustedBoundsY + snapshot.bounds.height / 2;
                 
                 slideOffset = (targetCenter - snapshotCenter) * progress;
               }
@@ -1284,13 +1375,12 @@ export class WeeklySchedule {
             animatedEvents.push({
               event: originalEvent,
               bounds: {
-                ...snapshot.bounds,
-                x: isVertical ? snapshot.bounds.x + slideOffset : snapshot.bounds.x,
-                y: isVertical ? snapshot.bounds.y : snapshot.bounds.y + slideOffset,
-                // Shrink width when zooming in
+                x: isVertical ? adjustedBoundsX + slideOffset : adjustedBoundsX,
+                y: isVertical ? adjustedBoundsY : adjustedBoundsY + slideOffset,
                 width: transition.isZoomingIn 
                   ? this.lerp(snapshot.bounds.width, snapshot.bounds.width * 0.3, progress)
                   : snapshot.bounds.width,
+                height: snapshot.bounds.height,
               },
               opacity: 1 - progress,
               backgroundColor: snapshot.backgroundColor,
@@ -1388,8 +1478,46 @@ export class WeeklySchedule {
    * Handle scroll events from the scroll container
    */
   private handleScroll(): void {
-    this.scrollX = this.scrollContainer.scrollLeft;
+    const currentScrollLeft = this.scrollContainer.scrollLeft;
+    
+    // Ignore scroll events triggered by programmatic scroll to prevent race conditions
+    if (this.isProgrammaticScroll) {
+      // Still sync scrollX/Y but don't schedule render
+      this.scrollX = currentScrollLeft;
+      this.scrollY = this.scrollContainer.scrollTop;
+      return;
+    }
+    
+    // Detect and restore scroll position if browser reset it unexpectedly during zoom
+    // This handles async scroll resets caused by DOM/layout changes
+    // Only restore if scroll was reset to 0 (or near 0) when we expect it to be at targetScrollX
+    // This prevents interference with normal user scrolling
+    if (this.zoomedDay !== null && this.targetScrollX !== null && this.targetScrollX > 10) {
+      // Only restore if scroll was reset to near 0 (within 10px) when we expect it to be much further
+      if (currentScrollLeft < 10 && Math.abs(currentScrollLeft - this.targetScrollX) > 10) {
+        // Restore scroll position
+        this.isProgrammaticScroll = true;
+        this.scrollContainer.scrollLeft = this.targetScrollX;
+        this.scrollX = this.scrollContainer.scrollLeft;
+        this.scrollY = this.scrollContainer.scrollTop;
+        
+        // Reset flag after this frame
+        requestAnimationFrame(() => {
+          this.isProgrammaticScroll = false;
+        });
+        return;
+      }
+    }
+    
+    this.scrollX = currentScrollLeft;
     this.scrollY = this.scrollContainer.scrollTop;
+    
+    // Clear targetScrollX on user scroll - user has taken control
+    // This prevents the scroll reset detection from interfering with manual scrolling
+    if (this.targetScrollX !== null) {
+      this.targetScrollX = null;
+    }
+    
     this.scheduleRender();
   }
 
@@ -1567,25 +1695,27 @@ export class WeeklySchedule {
       case 'event':
         if (hitResult.eventLayout?.isOverflow) {
           // Zoom to day when clicking overflow indicator
+          // Zoom to the day, using the event as anchor for stable positioning
           const day = hitResult.event!.day;
-          this.zoomToDay(day);
+          this.zoomToDay(day, hitResult.event!);
         } else if (hitResult.event) {
           // In normal mode, zoom to the event's day; in zoomed mode, dispatch click event
           if (this.zoomedDay === null) {
             // Normal mode: zoom to the day containing this event
-            this.zoomToDay(hitResult.event.day);
+            this.zoomToDay(hitResult.event.day, hitResult.event);
           } else {
             // Zoomed mode: dispatch click event for custom handling
             this.dispatchEvent('schedule-event-click', { event: hitResult.event });
           }
         }
         break;
-        
+
       case 'day-header':
         if (hitResult.day !== undefined) {
           if (this.zoomedDay === hitResult.day) {
             this.resetZoom();
           } else {
+            // No anchor event for day header click
             this.zoomToDay(hitResult.day);
           }
         }
@@ -1682,19 +1812,23 @@ export class WeeklySchedule {
     switch (hitResult.type) {
       case 'event':
         if (hitResult.eventLayout?.isOverflow) {
-          this.zoomToDay(hitResult.event!.day);
+          // Use the screen position (viewport-relative) as anchor
+          // Zoom to the day, using the event as anchor for stable positioning
+          this.zoomToDay(hitResult.event!.day, hitResult.event!);
         } else if (hitResult.event) {
           // In normal mode, zoom to the event's day; in zoomed mode, dispatch click event
           if (this.zoomedDay === null) {
             // Normal mode: zoom to the day containing this event
-            this.zoomToDay(hitResult.event.day);
+            // Use the screen position (viewport-relative) as anchor for stable positioning
+            // Normal mode: zoom to the day containing this event
+            this.zoomToDay(hitResult.event.day, hitResult.event);
           } else {
             // Zoomed mode: dispatch click event for custom handling
             this.dispatchEvent('schedule-event-click', { event: hitResult.event });
           }
         }
         break;
-        
+
       // Day headers and navigation buttons are now DOM elements
       // Click handling is done via DOM event listeners
     }

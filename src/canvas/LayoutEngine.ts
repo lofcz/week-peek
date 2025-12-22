@@ -83,7 +83,7 @@ const DEFAULT_DIMENSIONS: LayoutDimensions = {
  * Multiplier for scaling slot width/height in zoomed mode
  * Increase this value to make zoomed columns/rows wider/taller
  */
-export const ZOOMED_SLOT_SIZE_MULTIPLIER = 1.0; // 2.75
+export const ZOOMED_SLOT_SIZE_MULTIPLIER = 2.75; // 2.75
 
 /**
  * LayoutEngine computes pixel positions for all schedule elements
