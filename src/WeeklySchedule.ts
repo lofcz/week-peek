@@ -535,25 +535,30 @@ export class WeeklySchedule {
   private getConflictGroupForOverflow(overflowEvent: ScheduleEvent): ScheduleEvent[] {
     const day = overflowEvent.day;
     
-    // Find all events on this day that overlap with the overflow indicator's time range
-    const conflictGroup = this.events.filter(event => {
+    const visibleEventIds = new Set<string>();
+    if (this.layout) {
+      for (const eventLayout of this.layout.events) {
+        if (!eventLayout.isOverflow && eventLayout.event.day === day) {
+          visibleEventIds.add(eventLayout.event.id);
+        }
+      }
+    }
+    
+    const overflowStart = overflowEvent.startTime.toMinutes();
+    const overflowEnd = overflowEvent.endTime.toMinutes();
+    
+    const overlappingVisibleEvents = this.events.filter(event => {
       if (event.day !== day) return false;
+      if (event.className?.includes('event-overflow-indicator')) return false;
+      if (!visibleEventIds.has(event.id)) return false;
       
-      // Check if event overlaps with overflow indicator's time range
       const eventStart = event.startTime.toMinutes();
       const eventEnd = event.endTime.toMinutes();
-      const overflowStart = overflowEvent.startTime.toMinutes();
-      const overflowEnd = overflowEvent.endTime.toMinutes();
       
       return eventStart < overflowEnd && eventEnd > overflowStart;
     });
     
-    // Sort by start time
-    return conflictGroup.sort((a, b) => {
-      const aMinutes = a.startTime.toMinutes();
-      const bMinutes = b.startTime.toMinutes();
-      return aMinutes - bMinutes;
-    });
+    return overlappingVisibleEvents;
   }
 
   /**
@@ -1998,9 +2003,10 @@ export class WeeklySchedule {
         if (hitResult.eventLayout?.isOverflow) {
           // Zoom to day when clicking overflow indicator
           // Use the first event from the conflict group as anchor for stable positioning
-          const conflictGroup = this.getConflictGroupForOverflow(hitResult.event!);
+          const overflowEvent = hitResult.event!;
+          const conflictGroup = this.getConflictGroupForOverflow(overflowEvent);
           const anchorEvent = conflictGroup.length > 0 ? conflictGroup[0] : undefined;
-          const day = hitResult.event!.day;
+          const day = overflowEvent.day;
           this.zoomToDay(day, anchorEvent);
         } else if (hitResult.event) {
           // Always dispatch click event for regular events (no zoom)
