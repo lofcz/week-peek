@@ -130,8 +130,11 @@
   position: relative;
   min-width: 0;
   min-height: 0;
+  width: 0; /* Force flex item to respect container width */
   max-width: 100%;
   max-height: 100%;
+  overflow-x: hidden;
+  overflow-y: hidden;
 }
 
 .schedule-scroll-container.scroll-hidden {
@@ -161,7 +164,6 @@
  * Canvas wrapper - contains the canvas at content size
  */
 .schedule-canvas-wrapper {
-  position: absolute;
   top: 0;
   left: 0;
   width: 100%;
