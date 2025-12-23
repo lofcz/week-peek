@@ -516,10 +516,20 @@ export class WeeklySchedule {
    * @returns The first event of the day, or undefined if no events
    */
   private getFirstEventOfDay(day: DayOfWeek): ScheduleEvent | undefined {
-    const dayEvents = this.events.filter(e => e.day === day);
-    if (dayEvents.length === 0) return undefined;
+    // Get visible event IDs from current layout
+    const visibleEventIds = new Set<string>();
+    if (this.layout) {
+      for (const eventLayout of this.layout.events) {
+        if (!eventLayout.isOverflow && eventLayout.event.day === day) {
+          visibleEventIds.add(eventLayout.event.id);
+        }
+      }
+    }
+
+    const dayEvents = this.events.filter(e =>
+      e.day === day && (visibleEventIds.has(e.id) || visibleEventIds.size === 0)
+    );
     
-    // Sort by start time and return the first
     return dayEvents.sort((a, b) => {
       const aMinutes = a.startTime.hours * 60 + a.startTime.minutes;
       const bMinutes = b.startTime.hours * 60 + b.startTime.minutes;
