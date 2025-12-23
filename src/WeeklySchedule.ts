@@ -1275,10 +1275,10 @@ export class WeeklySchedule {
       if (this.config.icons?.className) {
         const iconSpan = document.createElement('span');
         iconSpan.className = this.config.icons.className;
-        iconSpan.textContent = iconText;
+        iconSpan.innerHTML = iconText;
         resetButton.appendChild(iconSpan);
       } else {
-        resetButton.textContent = iconText;
+        resetButton.innerHTML = iconText;
       }
       
       resetButton.addEventListener('click', (e) => {
@@ -1311,10 +1311,10 @@ export class WeeklySchedule {
         if (this.config.icons?.className) {
           const iconSpan = document.createElement('span');
           iconSpan.className = this.config.icons.className;
-          iconSpan.textContent = prevIconText;
+          iconSpan.innerHTML = prevIconText;
           prevButton.appendChild(iconSpan);
         } else {
-          prevButton.textContent = prevIconText;
+          prevButton.innerHTML = prevIconText;
         }
         
         if (!prevDisabled) {
@@ -1358,10 +1358,10 @@ export class WeeklySchedule {
         if (this.config.icons?.className) {
           const iconSpan = document.createElement('span');
           iconSpan.className = this.config.icons.className;
-          iconSpan.textContent = nextIconText;
+          iconSpan.innerHTML = nextIconText;
           nextButton.appendChild(iconSpan);
         } else {
-          nextButton.textContent = nextIconText;
+          nextButton.innerHTML = nextIconText;
         }
         
         if (!nextDisabled) {

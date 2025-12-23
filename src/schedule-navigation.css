@@ -56,6 +56,7 @@
 .schedule-nav-button:disabled {
   cursor: default;
   color: var(--schedule-grid-line-color, #e5e7eb);
+  filter: opacity(0.4);
 }
 
 .schedule-nav-button-prev {
