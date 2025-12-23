@@ -4,6 +4,7 @@
 
 import type { EventLayout, ScheduleLayout, Rect, FontSpec, EventAnimationState } from './types';
 import { CanvasRenderer, withAlpha } from './CanvasRenderer';
+import { RichTextRenderer } from './RichTextRenderer';
 import { EventIcon, ScheduleEvent } from '../types';
 
 /**
@@ -76,12 +77,14 @@ const EVENT_TEXT_COLOR = '#000000';
  */
 export class EventRenderer {
   private renderer: CanvasRenderer;
+  private richTextRenderer: RichTextRenderer;
   private config: EventRendererConfig;
   private imageCache: Map<string, HTMLImageElement> = new Map();
   private imageLoadPromises: Map<string, Promise<HTMLImageElement>> = new Map();
 
   constructor(renderer: CanvasRenderer, config: Partial<EventRendererConfig> = {}) {
     this.renderer = renderer;
+    this.richTextRenderer = new RichTextRenderer(renderer);
     this.config = { ...DEFAULT_CONFIG, ...config };
   }
 
@@ -371,21 +374,42 @@ export class EventRenderer {
 
     // Render description if there's enough space
     if (bounds.height >= this.config.minHeightForDescription && event.description) {
-      this.renderer.setFont(this.config.descriptionFont);
       const descHeight = this.config.descriptionFont.size * this.config.lineHeight;
       const remainingHeight = contentBounds.y + contentBounds.height - yOffset;
       
       if (remainingHeight >= descHeight) {
-        this.renderer.drawTextEllipsis(
-          event.description,
-          {
-            x: contentBounds.x,
-            y: yOffset,
-            width: contentBounds.width,
-            height: remainingHeight,
-          },
-          withAlpha(displayTextColor, 0.7)
-        );
+        const descriptionBounds: Rect = {
+          x: contentBounds.x,
+          y: yOffset,
+          width: contentBounds.width,
+          height: remainingHeight,
+        };
+        
+        // Check if description contains HTML tags
+        const hasHTML = event.description.includes('<') && event.description.includes('>');
+        
+        if (hasHTML) {
+          // Render as rich text HTML
+          this.richTextRenderer.render(
+            event.description,
+            descriptionBounds,
+            this.config.descriptionFont,
+            withAlpha(displayTextColor, 0.7),
+            {
+              maxLines: Math.floor(remainingHeight / (this.config.descriptionFont.size * this.config.lineHeight)),
+              lineHeight: this.config.lineHeight,
+              padding: 0,
+            }
+          );
+        } else {
+          // Render as plain text (backward compatibility)
+          this.renderer.setFont(this.config.descriptionFont);
+          this.renderer.drawTextEllipsis(
+            event.description,
+            descriptionBounds,
+            withAlpha(displayTextColor, 0.7)
+          );
+        }
       }
     }
   }
