@@ -160,6 +160,9 @@ export class WeeklySchedule {
   private rafId: number | null = null;
   private needsRender: boolean = false;
   
+  // Initial render tracking (for FOUC prevention)
+  private hasCompletedInitialRender: boolean = false;
+  
   // Hover tracking
   private hoverDebounceTimeout: ReturnType<typeof setTimeout> | null = null;
   private lastHoveredEventId: string | null = null;
@@ -342,6 +345,8 @@ export class WeeklySchedule {
     // Create canvas element
     this.canvas = document.createElement('canvas');
     this.canvas.className = 'schedule-canvas';
+    // Hide canvas initially to prevent FOUC (black flash before first render)
+    this.canvas.style.opacity = '0';
     
     // Assemble DOM structure
     this.canvasWrapper.appendChild(this.canvas);
@@ -1702,11 +1707,14 @@ export class WeeklySchedule {
    * Handle container resize
    */
   private handleResize(): void {
+    // For initial render, skip debounce to prevent FOUC
+    const isInitialRender = !this.hasCompletedInitialRender;
+    
     if (this.resizeTimeout !== null) {
       clearTimeout(this.resizeTimeout);
     }
 
-    this.resizeTimeout = setTimeout(() => {
+    const doResize = () => {
       // Detect mobile mode based on container width
       const containerWidth = this.container.clientWidth;
       const mobileBreakpoint = this.config.mobileBreakpoint ?? 768;
@@ -1732,7 +1740,24 @@ export class WeeklySchedule {
       this.invalidateLayout();
       this.renderFrame();
       this.resizeTimeout = null;
-    }, this.config.resizeDebounce ?? 50);
+      
+      // Reveal canvas after first render to prevent FOUC
+      if (!this.hasCompletedInitialRender) {
+        this.hasCompletedInitialRender = true;
+        // Use requestAnimationFrame to ensure paint has completed
+        requestAnimationFrame(() => {
+          this.canvas.style.opacity = '1';
+        });
+      }
+    };
+
+    if (isInitialRender) {
+      // Immediate render on first call to prevent black flash
+      doResize();
+    } else {
+      // Debounce subsequent resize events
+      this.resizeTimeout = setTimeout(doResize, this.config.resizeDebounce ?? 50);
+    }
   }
   
   /**
