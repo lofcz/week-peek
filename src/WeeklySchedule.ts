@@ -72,6 +72,10 @@ interface ZoomTransition {
   scrollOffsetX: number;
   /** Scroll offset delta for Y axis */
   scrollOffsetY: number;
+  /** Whether this is a day-to-day navigation (up/down while zoomed) */
+  isDayNavigation: boolean;
+  /** Direction of day navigation: 'up' (prev day) or 'down' (next day) */
+  navigationDirection: 'up' | 'down' | null;
 }
 
 /**
@@ -119,10 +123,16 @@ export class WeeklySchedule {
   private intersectionDiv: HTMLElement;
   private dayHeadersContainer: HTMLElement;
   private dayHeaders: HTMLElement[] = [];
+  private scrollAreaWrapper: HTMLElement;
+  private timeHeaderRow: HTMLElement | null = null;
+  private timeHeaderContent: HTMLElement | null = null;
   private scrollContainer: HTMLElement;
   private contentSizer: HTMLElement;
   private canvasWrapper: HTMLElement;
   private canvas: HTMLCanvasElement;
+  
+  // Track if we need separate time header (for vertical scrolling in horizontal mode)
+  private usesSeparateTimeHeader: boolean = false;
   
   // Configuration
   private config: WeeklyScheduleConfig;
@@ -175,6 +185,7 @@ export class WeeklySchedule {
 
   // Mobile mode state
   private isMobileMode: boolean = false;
+  private originalContainerHeight: string | undefined;
 
   // Original container state for cleanup
   private originalContainerClasses: string;
@@ -330,6 +341,10 @@ export class WeeklySchedule {
     this.dayHeaderContainer.appendChild(this.intersectionDiv);
     this.dayHeaderContainer.appendChild(this.dayHeadersContainer);
     
+    // Create scroll area wrapper - contains optional time header + scroll container
+    this.scrollAreaWrapper = document.createElement('div');
+    this.scrollAreaWrapper.className = 'schedule-scroll-area-wrapper';
+    
     // Create scroll container - this provides native scrollbars
     this.scrollContainer = document.createElement('div');
     this.scrollContainer.className = 'schedule-scroll-container scroll-hidden';
@@ -352,8 +367,9 @@ export class WeeklySchedule {
     this.canvasWrapper.appendChild(this.canvas);
     this.contentSizer.appendChild(this.canvasWrapper);
     this.scrollContainer.appendChild(this.contentSizer);
+    this.scrollAreaWrapper.appendChild(this.scrollContainer);
     this.container.appendChild(this.dayHeaderContainer);
-    this.container.appendChild(this.scrollContainer);
+    this.container.appendChild(this.scrollAreaWrapper);
 
     // Initialize rendering components
     const theme: Partial<CanvasTheme> = this.config.canvas?.theme ?? {};
@@ -497,20 +513,54 @@ export class WeeklySchedule {
   }
 
   /**
-   * Update scrollContainer overflow based on zoom state and orientation
+   * Update scrollContainer overflow based on zoom state, orientation, and content dimensions
+   * Should be called AFTER calculateContentSize() to have accurate overflow detection
+   * Uses this.usesSeparateTimeHeader which is set by calculateContentSize()
    */
   private updateScrollContainerOverflow(): void {
     const isVertical = this.config.orientation === ScheduleOrientation.Vertical;
     const isZoomed = this.zoomedDay !== null;
+    const isHorizontal = !isVertical;
     
     // Remove all scroll classes
-    this.scrollContainer.classList.remove('scroll-hidden', 'scroll-vertical', 'scroll-horizontal');
+    this.scrollContainer.classList.remove('scroll-hidden', 'scroll-vertical', 'scroll-horizontal', 'scroll-both');
     
-    if (isZoomed) {
-      // When zoomed, enable scrolling in the appropriate direction
-      this.scrollContainer.classList.add(isVertical ? 'scroll-vertical' : 'scroll-horizontal');
+    // Mobile mode - handled by handleMobileModeChange, just ensure no time header
+    if (this.isMobileMode) {
+      this.removeTimeHeaderRow();
+      this.scrollAreaWrapper.classList.remove('has-time-header');
+      // Mobile overflow is handled by handleMobileModeChange
+      return;
+    }
+    
+    if (isHorizontal) {
+      // Horizontal desktop mode - ALWAYS use DOM time header for consistency
+      this.createTimeHeaderRow();
+      this.scrollAreaWrapper.classList.add('has-time-header');
+      
+      if (isZoomed) {
+        // Zoomed: horizontal scroll + possible vertical scroll
+        // Check if vertical scrolling is needed (content height > available)
+        // DOM header is 41px (40px + 1px border), scrollbar is ~17px
+        const needsVerticalScroll = this.contentHeight > (this.scrollAreaWrapper.clientHeight - 41 - 17);
+        if (needsVerticalScroll) {
+          this.scrollContainer.classList.add('scroll-both');
+        } else {
+          this.scrollContainer.classList.add('scroll-horizontal');
+        }
+      } else {
+        // Normal week view - no scrollbars needed
+        this.scrollContainer.classList.add('scroll-hidden');
+      }
+    } else if (isVertical && isZoomed) {
+      // Vertical zoomed mode
+      this.removeTimeHeaderRow();
+      this.scrollAreaWrapper.classList.remove('has-time-header');
+      this.scrollContainer.classList.add('scroll-vertical');
     } else {
-      // In normal week view, hide scrollbars to prevent space reservation
+      // Vertical normal mode
+      this.removeTimeHeaderRow();
+      this.scrollAreaWrapper.classList.remove('has-time-header');
       this.scrollContainer.classList.add('scroll-hidden');
     }
   }
@@ -543,45 +593,12 @@ export class WeeklySchedule {
   }
 
   /**
-   * Get all events in the conflict group for an overflow indicator
-   * @param overflowEvent - The overflow indicator event
-   * @returns Array of events in the conflict group, sorted by start time
-   */
-  private getConflictGroupForOverflow(overflowEvent: ScheduleEvent): ScheduleEvent[] {
-    const day = overflowEvent.day;
-    
-    const visibleEventIds = new Set<string>();
-    if (this.layout) {
-      for (const eventLayout of this.layout.events) {
-        if (!eventLayout.isOverflow && eventLayout.event.day === day) {
-          visibleEventIds.add(eventLayout.event.id);
-        }
-      }
-    }
-    
-    const overflowStart = overflowEvent.startTime.toMinutes();
-    const overflowEnd = overflowEvent.endTime.toMinutes();
-    
-    const overlappingVisibleEvents = this.events.filter(event => {
-      if (event.day !== day) return false;
-      if (event.className?.includes('event-overflow-indicator')) return false;
-      if (!visibleEventIds.has(event.id)) return false;
-      
-      const eventStart = event.startTime.toMinutes();
-      const eventEnd = event.endTime.toMinutes();
-      
-      return eventStart < overflowEnd && eventEnd > overflowStart;
-    });
-    
-    return overlappingVisibleEvents;
-  }
-
-  /**
    * Zoom to a specific day with animated transition
    * @param day - The day to zoom to
    * @param anchorEvent - Optional event to use as anchor for stable positioning (defaults to first event of day)
+   * @param scrollToShowAll - When true (e.g., from overflow indicator click), scroll to show all events including rightmost
    */
-  zoomToDay(day: DayOfWeek, anchorEvent?: ScheduleEvent): void {
+  zoomToDay(day: DayOfWeek, anchorEvent?: ScheduleEvent, scrollToShowAll: boolean = false): void {
     if (this.zoomedDay === day) return;
     
     // If no anchor event provided, use the first event of the day
@@ -589,19 +606,30 @@ export class WeeklySchedule {
       anchorEvent = this.getFirstEventOfDay(day);
     }
 
+    // Detect day-to-day navigation (switching days while already zoomed)
+    const isDayNavigation = this.zoomedDay !== null;
+    let navigationDirection: 'up' | 'down' | null = null;
+    
+    if (isDayNavigation) {
+      const currentIndex = this.originalVisibleDays.indexOf(this.zoomedDay!);
+      const targetIndex = this.originalVisibleDays.indexOf(day);
+      navigationDirection = targetIndex < currentIndex ? 'up' : 'down';
+    }
+
     // Capture current layout state before transition
-    this.captureLayoutSnapshot(true, day);
+    this.captureLayoutSnapshot(true, day, isDayNavigation, navigationDirection);
 
     this.zoomedDay = day;
     this.config.visibleDays = [day];
     this.layoutEngine.updateConfig({ visibleDays: [day] });
     
-    // Update scroll container overflow for zoomed state
-    this.updateScrollContainerOverflow();
-    
     // Recalculate content size for new zoom state (affects horizontal scrolling in horizontal mode)
     this.calculateContentSize();
     this.renderer.resize(this.contentWidth, this.contentHeight);
+    
+    // Update scroll container overflow AFTER calculating content size
+    // so we know if both directions need scrolling
+    this.updateScrollContainerOverflow();
     
     // Compute new layout for the transition target
     this.invalidateLayout();
@@ -609,44 +637,73 @@ export class WeeklySchedule {
     
     // Calculate scroll offset to keep anchor event at same screen position
     // We'll apply it AFTER all DOM/canvas changes are complete to avoid browser reset
-    let pendingScrollOffset: number | null = null;
+    let pendingScrollOffsetX: number | null = null;
     
-    if (anchorEvent && this.layout && this.zoomTransition) {
+    if (this.layout && this.zoomTransition) {
       const isHorizontal = this.config.orientation === ScheduleOrientation.Horizontal;
       
       if (isHorizontal) {
-        // Find the event in the new layout
-        const eventLayout = this.layout.events.find(e => e.event.id === anchorEvent.id);
-        // Find the event's OLD position from the snapshot
-        const oldSnapshot = this.zoomTransition.fromSnapshots.get(anchorEvent.id);
-        
-        if (eventLayout && oldSnapshot) {
-          // Case 1: Zooming from unzoomed to zoomed (same day) - keep event at same screen position
-          const oldEventX = oldSnapshot.bounds.x;
-          const newEventX = eventLayout.bounds.x;
+        if (scrollToShowAll) {
+          // Case: Clicking overflow indicator - scroll to show all events, especially rightmost
+          // Find the rightmost event position in the new layout
+          let rightmostX = 0;
+          for (const eventLayout of this.layout.events) {
+            const rightEdge = eventLayout.bounds.x + eventLayout.bounds.width;
+            if (rightEdge > rightmostX) {
+              rightmostX = rightEdge;
+            }
+          }
           
-          // Scroll offset = difference between new and old canvas positions
-          // This keeps the event at the same visual screen position
-          pendingScrollOffset = newEventX - oldEventX;
+          // Scroll to make the rightmost events visible (scroll to the right)
+          // We want the right edge of the rightmost event visible with padding
+          const viewportWidth = this.scrollContainer.clientWidth;
+          const padding = 20;
           
-          // Pre-calculate scroll offset for animation interpolation
-          // This needs to be set now so animations render correctly from the first frame
-          const maxScroll = Math.max(0, this.scrollContainer.scrollWidth - this.scrollContainer.clientWidth);
-          const targetScroll = Math.max(0, Math.min(pendingScrollOffset, maxScroll));
-          this.zoomTransition.scrollOffsetX += targetScroll;
-          this.zoomTransition.scrollOffsetY += this.scrollY;
-        } else if (eventLayout && !oldSnapshot) {
-          // Case 2: Navigating between days in zoomed mode - scroll to show the first event
-          // Scroll so the event's left edge is visible (with small padding from left edge)
-          const eventX = eventLayout.bounds.x;
-          const padding = 20; // Small padding from left edge
-          pendingScrollOffset = Math.max(0, eventX - padding);
+          // Calculate scroll to show rightmost events
+          pendingScrollOffsetX = Math.max(0, rightmostX - viewportWidth + padding);
           
           // Pre-calculate scroll offset for animation interpolation
-          const maxScroll = Math.max(0, this.scrollContainer.scrollWidth - this.scrollContainer.clientWidth);
-          const targetScroll = Math.max(0, Math.min(pendingScrollOffset, maxScroll));
-          this.zoomTransition.scrollOffsetX += targetScroll;
-          this.zoomTransition.scrollOffsetY += this.scrollY;
+          const maxScrollX = Math.max(0, this.scrollContainer.scrollWidth - viewportWidth);
+          const targetScrollX = Math.max(0, Math.min(pendingScrollOffsetX, maxScrollX));
+          this.zoomTransition.scrollOffsetX += targetScrollX;
+          // Vertical scroll always resets to 0 when zooming
+          this.zoomTransition.scrollOffsetY = 0;
+        } else if (anchorEvent) {
+          // Find the event in the new layout
+          const eventLayout = this.layout.events.find(e => e.event.id === anchorEvent.id);
+          // Find the event's OLD position from the snapshot
+          const oldSnapshot = this.zoomTransition.fromSnapshots.get(anchorEvent.id);
+          
+          if (eventLayout && oldSnapshot) {
+            // Case 1: Zooming from unzoomed to zoomed (same day) - keep event at same screen position
+            const oldEventX = oldSnapshot.bounds.x;
+            const newEventX = eventLayout.bounds.x;
+            
+            // Scroll offset = difference between new and old canvas positions
+            // This keeps the event at the same visual screen position
+            pendingScrollOffsetX = newEventX - oldEventX;
+            
+            // Pre-calculate scroll offset for animation interpolation
+            // This needs to be set now so animations render correctly from the first frame
+            const maxScroll = Math.max(0, this.scrollContainer.scrollWidth - this.scrollContainer.clientWidth);
+            const targetScroll = Math.max(0, Math.min(pendingScrollOffsetX, maxScroll));
+            this.zoomTransition.scrollOffsetX += targetScroll;
+            // Vertical scroll always resets to 0 when zooming
+            this.zoomTransition.scrollOffsetY = 0;
+          } else if (eventLayout && !oldSnapshot) {
+            // Case 2: Navigating between days in zoomed mode - scroll to show the first event
+            // Scroll so the event's left edge is visible (with small padding from left edge)
+            const eventX = eventLayout.bounds.x;
+            const padding = 20; // Small padding from left edge
+            pendingScrollOffsetX = Math.max(0, eventX - padding);
+            
+            // Pre-calculate scroll offset for animation interpolation
+            const maxScroll = Math.max(0, this.scrollContainer.scrollWidth - this.scrollContainer.clientWidth);
+            const targetScroll = Math.max(0, Math.min(pendingScrollOffsetX, maxScroll));
+            this.zoomTransition.scrollOffsetX += targetScroll;
+            // Vertical scroll always resets to 0 when zooming
+            this.zoomTransition.scrollOffsetY = 0;
+          }
         }
       }
     }
@@ -663,31 +720,29 @@ export class WeeklySchedule {
     
     // Apply scroll offset AFTER all DOM and canvas changes are complete
     // This prevents the browser from resetting scroll during layout recalculation
-    if (pendingScrollOffset !== null) {
-      const maxScroll = Math.max(0, this.scrollContainer.scrollWidth - this.scrollContainer.clientWidth);
-      const targetScroll = Math.max(0, Math.min(pendingScrollOffset, maxScroll));
-      
-      this.isProgrammaticScroll = true;
-      this.scrollContainer.scrollLeft = targetScroll;
-      this.scrollX = this.scrollContainer.scrollLeft;
-      this.scrollY = this.scrollContainer.scrollTop;
-      
-      // Re-enable scroll event handler after next frame
-      requestAnimationFrame(() => {
-        this.isProgrammaticScroll = false;
-      });
-    } else if (!anchorEvent) {
-      // No anchor event (no events on this day) - reset scroll to 0
-      this.isProgrammaticScroll = true;
+    this.isProgrammaticScroll = true;
+    
+    if (pendingScrollOffsetX !== null) {
+      const maxScrollX = Math.max(0, this.scrollContainer.scrollWidth - this.scrollContainer.clientWidth);
+      const targetScrollX = Math.max(0, Math.min(pendingScrollOffsetX, maxScrollX));
+      this.scrollContainer.scrollLeft = targetScrollX;
+    } else {
+      // No horizontal scroll offset calculated - reset to 0
       this.scrollContainer.scrollLeft = 0;
-      this.scrollX = 0;
-      this.scrollY = this.scrollContainer.scrollTop;
-      
-      // Re-enable scroll event handler after next frame
-      requestAnimationFrame(() => {
-        this.isProgrammaticScroll = false;
-      });
     }
+    this.scrollX = this.scrollContainer.scrollLeft;
+    
+    // Always reset vertical scroll to top when zooming - this provides consistent UX
+    this.scrollContainer.scrollTop = 0;
+    this.scrollY = 0;
+    
+    // Sync time header if present
+    this.syncTimeHeaderScroll();
+    
+    // Re-enable scroll event handler after next frame
+    requestAnimationFrame(() => {
+      this.isProgrammaticScroll = false;
+    });
     
     this.dispatchEvent('schedule-day-zoom', { day });
   }
@@ -713,12 +768,12 @@ export class WeeklySchedule {
     this.config.visibleDays = [...this.originalVisibleDays];
     this.layoutEngine.updateConfig({ visibleDays: this.originalVisibleDays });
     
-    // Update scroll container overflow for unzoomed state
-    this.updateScrollContainerOverflow();
-    
     // Recalculate content size for unzoomed state
     this.calculateContentSize();
     this.renderer.resize(this.contentWidth, this.contentHeight);
+    
+    // Update scroll container overflow AFTER calculating content size
+    this.updateScrollContainerOverflow();
     
     // Compute new layout for the transition target
     this.invalidateLayout();
@@ -739,8 +794,17 @@ export class WeeklySchedule {
 
   /**
    * Capture the current layout as a snapshot for animation
+   * @param isZoomingIn - Whether transitioning to zoomed state
+   * @param targetDay - The day being zoomed to (if zooming in)
+   * @param isDayNavigation - Whether this is a day-to-day navigation while zoomed
+   * @param navigationDirection - Direction of day navigation ('up' for prev, 'down' for next)
    */
-  private captureLayoutSnapshot(isZoomingIn: boolean, targetDay: DayOfWeek | null): void {
+  private captureLayoutSnapshot(
+    isZoomingIn: boolean, 
+    targetDay: DayOfWeek | null,
+    isDayNavigation: boolean = false,
+    navigationDirection: 'up' | 'down' | null = null
+  ): void {
     const fromSnapshots = new Map<string, EventSnapshot>();
     const fromDays = new Map<DayOfWeek, DaySnapshot>();
     const { width, height } = this.renderer.getSize();
@@ -775,7 +839,7 @@ export class WeeklySchedule {
     this.zoomTransition = {
       progress: 0,
       startTime: performance.now(),
-      duration: this.config.canvas?.animationDuration ?? 350,
+      duration: isDayNavigation ? 250 : (this.config.canvas?.animationDuration ?? 350), // Faster for day nav
       fromSnapshots,
       fromDays,
       toLayout: null,
@@ -787,6 +851,8 @@ export class WeeklySchedule {
       // This gives us (newScroll - oldScroll) which is the offset to apply to fromSnapshots
       scrollOffsetX: -oldScrollX,
       scrollOffsetY: -oldScrollY,
+      isDayNavigation,
+      navigationDirection,
     };
   }
 
@@ -957,7 +1023,8 @@ export class WeeklySchedule {
         processedEvents,
         dpr,
         this.zoomedDay,
-        this.originalVisibleDays
+        this.originalVisibleDays,
+        this.usesSeparateTimeHeader
       );
     }
 
@@ -1386,6 +1453,93 @@ export class WeeklySchedule {
     }
   }
 
+  /**
+   * Create or update the time header row for horizontal mode with vertical scrolling
+   * This keeps time labels visible while events scroll vertically
+   */
+  private createTimeHeaderRow(): void {
+    const isHorizontal = this.config.orientation === ScheduleOrientation.Horizontal;
+    if (!isHorizontal) return;
+    
+    // Create time header row if it doesn't exist
+    if (!this.timeHeaderRow) {
+      this.timeHeaderRow = document.createElement('div');
+      this.timeHeaderRow.className = 'schedule-time-header-row';
+      
+      this.timeHeaderContent = document.createElement('div');
+      this.timeHeaderContent.className = 'schedule-time-header-content';
+      
+      this.timeHeaderRow.appendChild(this.timeHeaderContent);
+      
+      // Insert time header row before scroll container
+      this.scrollAreaWrapper.insertBefore(this.timeHeaderRow, this.scrollContainer);
+    }
+    
+    // Update time header content width to match canvas content
+    if (this.timeHeaderContent) {
+      this.timeHeaderContent.style.width = `${this.contentWidth}px`;
+    }
+    
+    // Render time slot labels
+    this.renderTimeHeaderLabels();
+    
+    this.usesSeparateTimeHeader = true;
+  }
+
+  /**
+   * Remove the time header row when not needed
+   */
+  private removeTimeHeaderRow(): void {
+    if (this.timeHeaderRow && this.timeHeaderRow.parentNode) {
+      this.timeHeaderRow.parentNode.removeChild(this.timeHeaderRow);
+    }
+    this.timeHeaderRow = null;
+    this.timeHeaderContent = null;
+    this.usesSeparateTimeHeader = false;
+  }
+
+  /**
+   * Render time slot labels in the time header row
+   */
+  private renderTimeHeaderLabels(): void {
+    if (!this.timeHeaderContent) return;
+    
+    // Clear existing labels
+    this.timeHeaderContent.innerHTML = '';
+    
+    const startHour = this.config.startHour ?? 9;
+    const endHour = this.config.endHour ?? 17;
+    const interval = this.config.timeSlotInterval ?? TimeSlotInterval.SixtyMinutes;
+    const slotCount = Math.ceil((endHour - startHour) * 60 / interval);
+    
+    // Calculate slot width - use contentWidth to match the canvas
+    // Slot width = total content width / number of slots
+    const slotWidth = this.contentWidth / slotCount;
+    
+    for (let i = 0; i < slotCount; i++) {
+      const minutes = startHour * 60 + i * interval;
+      const hours = Math.floor(minutes / 60);
+      const mins = minutes % 60;
+      const label = `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+      
+      const slotDiv = document.createElement('div');
+      slotDiv.className = 'schedule-time-slot-label';
+      slotDiv.style.width = `${slotWidth}px`;
+      slotDiv.textContent = label;
+      
+      this.timeHeaderContent.appendChild(slotDiv);
+    }
+  }
+
+  /**
+   * Sync time header scroll with main scroll container
+   */
+  private syncTimeHeaderScroll(): void {
+    if (this.timeHeaderRow && this.usesSeparateTimeHeader) {
+      this.timeHeaderRow.scrollLeft = this.scrollContainer.scrollLeft;
+    }
+  }
+
   private renderFrame(): void {
     this.computeLayout();
     if (!this.layout) return;
@@ -1401,7 +1555,8 @@ export class WeeklySchedule {
 
     // Desktop mode: full rendering
     // Render grid (background, lines, headers)
-    this.gridRenderer.render(this.layout);
+    // Skip time axis rendering if using separate DOM time header
+    this.gridRenderer.render(this.layout, this.usesSeparateTimeHeader);
 
     // Apply animation states to event layouts before rendering
     const animatedLayout = this.applyAnimations(this.layout);
@@ -1503,6 +1658,11 @@ export class WeeklySchedule {
     const transition = this.zoomTransition;
     const progress = transition?.progress ?? 1;
     const isVertical = this.config.orientation === ScheduleOrientation.Vertical;
+
+    // Use special vertical slide animation for day-to-day navigation
+    if (transition && progress < 1 && transition.isDayNavigation) {
+      return this.applyDayNavigationAnimation(layout, transition, progress);
+    }
 
     // Process events that exist in the target layout
     for (const eventLayout of layout.events) {
@@ -1653,6 +1813,87 @@ export class WeeklySchedule {
   }
 
   /**
+   * Apply clean vertical slide animation for day-to-day navigation
+   * Old day slides out (up or down), new day slides in from the opposite direction
+   */
+  private applyDayNavigationAnimation(
+    layout: ScheduleLayout, 
+    transition: ZoomTransition, 
+    progress: number
+  ): ScheduleLayout {
+    const animatedEvents: EventLayout[] = [];
+    
+    // Slide distance - use canvas height for vertical motion
+    const slideDistance = transition.canvasHeight;
+    
+    // Direction: 'up' means going to previous day (old slides down, new slides in from top)
+    // 'down' means going to next day (old slides up, new slides in from bottom)
+    const isGoingUp = transition.navigationDirection === 'up';
+    
+    // Old events slide OUT: if going up, old slides down (+Y); if going down, old slides up (-Y)
+    const oldSlideOffset = isGoingUp 
+      ? slideDistance * progress 
+      : -slideDistance * progress;
+    
+    // New events slide IN: if going up, new comes from top (-Y to 0); if going down, new comes from bottom (+Y to 0)
+    const newSlideOffset = isGoingUp
+      ? -slideDistance * (1 - progress)
+      : slideDistance * (1 - progress);
+
+    // Render OLD events (from snapshots) sliding out
+    for (const [eventId, snapshot] of transition.fromSnapshots) {
+      const originalEvent = this.allEvents.find(e => e.id === eventId) ?? 
+                           this.events.find(e => e.id === eventId);
+      
+      if (originalEvent) {
+        animatedEvents.push({
+          event: originalEvent,
+          bounds: {
+            x: snapshot.bounds.x,
+            y: snapshot.bounds.y + oldSlideOffset,
+            width: snapshot.bounds.width,
+            height: snapshot.bounds.height,
+          },
+          opacity: 1 - progress, // Fade out as it slides
+          backgroundColor: snapshot.backgroundColor,
+          textColor: snapshot.textColor,
+          isOverflow: eventId.startsWith('overflow-'),
+          scale: 1,
+        });
+      }
+    }
+
+    // Render NEW events (target layout) sliding in
+    for (const eventLayout of layout.events) {
+      const eventId = eventLayout.event.id;
+      let animatedLayout = { ...eventLayout };
+      
+      // Apply slide-in offset
+      animatedLayout.bounds = {
+        ...eventLayout.bounds,
+        y: eventLayout.bounds.y + newSlideOffset,
+      };
+      animatedLayout.opacity = progress; // Fade in as it slides
+
+      // Apply hover brightness animation
+      const brightness = this.hoverBrightness.get(eventId);
+      if (brightness && brightness.current !== 1) {
+        animatedLayout.backgroundColor = this.adjustBrightness(
+          animatedLayout.backgroundColor,
+          (brightness.current - 1) * 100
+        );
+      }
+
+      animatedEvents.push(animatedLayout);
+    }
+
+    return {
+      ...layout,
+      events: animatedEvents,
+    };
+  }
+
+  /**
    * Linear interpolation between two values
    */
   private lerp(a: number, b: number, t: number): number {
@@ -1729,6 +1970,9 @@ export class WeeklySchedule {
       // Calculate content size based on minimum requirements
       this.calculateContentSize();
       
+      // Update scroll container and time header (creates DOM time header in horizontal desktop mode)
+      this.updateScrollContainerOverflow();
+      
       // Resize canvas to content size (not viewport size)
       this.renderer.resize(this.contentWidth, this.contentHeight);
       
@@ -1771,12 +2015,33 @@ export class WeeklySchedule {
       }
       this.hideNavigationDOM();
       this.hideDayHeadersDOM();
-      // Enable vertical scrolling for mobile
-      this.scrollContainer.classList.remove('scroll-hidden', 'scroll-horizontal');
-      this.scrollContainer.classList.add('scroll-vertical');
+      // Remove time header if present
+      this.removeTimeHeaderRow();
+      this.scrollAreaWrapper.classList.remove('has-time-header');
+      
+      // Mobile: expand to full content height, page scrolls instead of component
+      // Store original container height to restore later
+      if (!this.originalContainerHeight) {
+        this.originalContainerHeight = this.container.style.height;
+      }
+      // Let container expand to content
+      this.container.style.height = 'auto';
+      this.container.style.overflow = 'visible';
+      this.scrollAreaWrapper.style.overflow = 'visible';
+      this.scrollContainer.style.overflow = 'visible';
+      this.scrollContainer.classList.add('scroll-hidden');
     } else {
       // Exiting mobile mode - restore desktop state
       this.showDayHeadersDOM();
+      
+      // Restore original container height
+      if (this.originalContainerHeight !== undefined) {
+        this.container.style.height = this.originalContainerHeight;
+      }
+      this.container.style.overflow = '';
+      this.scrollAreaWrapper.style.overflow = '';
+      this.scrollContainer.style.overflow = '';
+      
       this.updateScrollContainerOverflow();
     }
   }
@@ -1823,11 +2088,16 @@ export class WeeklySchedule {
       // Still sync scrollX/Y but don't schedule render
       this.scrollX = currentScrollLeft;
       this.scrollY = this.scrollContainer.scrollTop;
+      // Sync time header scroll even during programmatic scroll
+      this.syncTimeHeaderScroll();
       return;
     }
     
     this.scrollX = currentScrollLeft;
     this.scrollY = this.scrollContainer.scrollTop;
+    
+    // Sync time header scroll position
+    this.syncTimeHeaderScroll();
     
     this.scheduleRender();
   }
@@ -1835,25 +2105,29 @@ export class WeeklySchedule {
   /**
    * Calculate content dimensions based on viewport and minimum requirements
    * This determines if scrollbars are needed and the canvas size
-   * Uses container dimensions (stable) rather than scrollContainer (affected by scrollbar)
+   * Uses scrollAreaWrapper dimensions (stable container that doesn't change with scrollbars)
    */
   private calculateContentSize(): void {
-    // Use scrollContainer dimensions directly - this is the actual viewport for the canvas
-    // The scrollContainer is already sized correctly by flexbox (container minus day header)
     const isVertical = this.config.orientation === ScheduleOrientation.Vertical;
     const dims = this.layoutEngine.getDimensions();
     
-    // Get the actual available viewport from scrollContainer
+    // Reset flag - will be set to true only in horizontal zoomed mode
+    this.usesSeparateTimeHeader = false;
+    
+    // Get the actual available viewport from scrollAreaWrapper (the stable outer container)
     // Use Math.floor to avoid rounding issues that cause 1-2px overflow
-    let viewportWidth = Math.floor(this.scrollContainer.clientWidth);
-    let viewportHeight = Math.floor(this.scrollContainer.clientHeight);
+    let viewportWidth = Math.floor(this.scrollAreaWrapper.clientWidth);
+    let viewportHeight = Math.floor(this.scrollAreaWrapper.clientHeight);
     
     // Ensure we have valid dimensions
     viewportWidth = Math.max(0, viewportWidth);
     viewportHeight = Math.max(0, viewportHeight);
     
-    // Mobile mode: calculate height based on content (vertical scrolling)
+    // Mobile mode: simple full-height layout
     if (this.isMobileMode) {
+      // Mobile never uses separate time header
+      this.usesSeparateTimeHeader = false;
+      
       this.contentWidth = viewportWidth;
       // Calculate height based on mobile layout
       const mobileLayout = this.layoutEngine.computeMobileLayout(
@@ -1861,8 +2135,8 @@ export class WeeklySchedule {
         this.events,
         this.config.canvas?.devicePixelRatio ?? window.devicePixelRatio
       );
-      // Use calculated height, but ensure at least viewport height
-      this.contentHeight = Math.max(viewportHeight, mobileLayout.canvasHeight);
+      // Use the full calculated height
+      this.contentHeight = mobileLayout.canvasHeight;
       
       // Update sizing styles for mobile
       const finalWidth = Math.floor(this.contentWidth);
@@ -1872,7 +2146,8 @@ export class WeeklySchedule {
       this.contentSizer.style.minWidth = '0';
       this.contentSizer.style.height = `${finalHeight}px`;
       this.contentSizer.style.maxWidth = `${finalWidth}px`;
-      this.contentSizer.style.maxHeight = ''; // Allow vertical growth
+      this.contentSizer.style.maxHeight = '';
+      this.contentSizer.style.minHeight = '0';
       return;
     }
     
@@ -1880,40 +2155,88 @@ export class WeeklySchedule {
     // Get dimensions from layout (already retrieved above)
     const numDays = this.zoomedDay !== null ? 1 : (this.config.visibleDays?.length ?? 5);
     
-    // Height always fits viewport (no vertical scroll)
+    // Default: height fits viewport (no vertical scroll)
     this.contentHeight = viewportHeight;
     
     let minWidth = 0;
+    let minHeight = 0;
+    const headerHeight = dims.headerSize;
+    
+    // Horizontal scrollbar height - needed for calculations when scrollbar is present
+    const SCROLLBAR_HEIGHT = 17; // Typical scrollbar height across browsers
     
     if (isVertical) {
       // Vertical: days are columns, time is rows
       // Calculate minimum width for all day columns plus time axis
       minWidth = dims.crossAxisSize + (numDays * dims.minDayColumnWidth);
     } else {
-      // Horizontal: time is columns, days are rows  
-      // In normal (unzoomed) mode, let slots fit the viewport (no minimum enforced)
-      // Only when zoomed, enforce larger minimum slot size to trigger scrolling
+      // Horizontal: time is columns, days are rows
+      // ALWAYS use DOM-based time header in horizontal desktop mode for consistency
+      this.usesSeparateTimeHeader = true;
+      
+      // Calculate available height for canvas (viewport minus DOM header)
+      // Canvas will NOT include time header - it's rendered separately in DOM
+      // DOM header is headerHeight (40px) + 1px border = 41px
+      // Add 2px padding at bottom and right for visual breathing room
+      const DOM_HEADER_HEIGHT = headerHeight + 1;
+      const EDGE_PADDING = 2;
+      let canvasAvailableHeight = viewportHeight - DOM_HEADER_HEIGHT - EDGE_PADDING;
+      
       if (this.zoomedDay !== null) {
-        // Use actual slot count calculation (same as LayoutEngine.getTimeSlotCount)
+        // Zoomed mode: enforce larger minimum slot size to trigger horizontal scrolling
         const startHour = this.config.startHour ?? 9;
         const endHour = this.config.endHour ?? 17;
         const interval = this.config.timeSlotInterval ?? TimeSlotInterval.SixtyMinutes;
         const slotCount = Math.ceil((endHour - startHour) * 60 / interval);
         const effectiveMinSlotSize = dims.minSlotSize * ZOOMED_SLOT_SIZE_MULTIPLIER;
         minWidth = slotCount * effectiveMinSlotSize;
+        
+        // Horizontal scrollbar will be present - subtract its height from available space
+        canvasAvailableHeight -= SCROLLBAR_HEIGHT;
+        
+        // Calculate required height based on number of lanes for the zoomed day
+        const zoomedDayEvents = this.events.filter(e => e.day === this.zoomedDay);
+        if (zoomedDayEvents.length > 0) {
+          const laneMap = assignLanes(zoomedDayEvents);
+          
+          // Find max total lanes needed
+          let maxLanes = 1;
+          for (const laneInfo of laneMap.values()) {
+            if (laneInfo.totalLanes > maxLanes) {
+              maxLanes = laneInfo.totalLanes;
+            }
+          }
+          
+          // Calculate minimum height needed for events to be readable
+          const MIN_LANE_HEIGHT = 80; // Minimum pixels per lane for readability
+          const requiredMinHeight = maxLanes * MIN_LANE_HEIGHT;
+          
+          // Decision: can events fit in available space at minimum readable size?
+          if (requiredMinHeight > canvasAvailableHeight) {
+            // Events don't fit at minimum size - need vertical scrolling
+            minHeight = requiredMinHeight;
+          }
+          // Otherwise: events scale to fill canvasAvailableHeight
+        }
       }
-      // When not zoomed, minWidth stays 0 - slots will fit viewport
+      // Store the canvas height for horizontal mode (excluding DOM header and scrollbar if present)
+      this.contentHeight = Math.max(canvasAvailableHeight, minHeight);
     }
     
     // Only enforce minimum width when zoomed (or in vertical mode with narrow viewport)
-    // In normal horizontal mode, contentWidth = viewportWidth exactly (no scrollbar)
+    // In normal horizontal mode, contentWidth = viewportWidth minus padding
     if (minWidth > 0) {
       // Zoomed mode: allow content to exceed viewport to trigger scrolling
       this.contentWidth = Math.max(viewportWidth, minWidth);
+    } else if (!isVertical && this.usesSeparateTimeHeader) {
+      // Normal horizontal mode with DOM header: subtract edge padding for breathing room
+      const EDGE_PADDING = 2;
+      this.contentWidth = viewportWidth - EDGE_PADDING;
     } else {
-      // Normal mode: ensure exact match to prevent any overflow
+      // Vertical mode or other: exact match
       this.contentWidth = viewportWidth;
     }
+    // Note: contentHeight for horizontal mode is already set in the else branch above
     
     // Update sizing styles
     // Always set explicit pixel dimensions for canvas rendering
@@ -1925,7 +2248,9 @@ export class WeeklySchedule {
     this.contentSizer.style.minWidth = minWidth > 0 ? `${Math.floor(minWidth)}px` : '0';
     this.contentSizer.style.height = `${finalHeight}px`;
     this.contentSizer.style.maxWidth = `${finalWidth}px`;
-    this.contentSizer.style.maxHeight = `${finalHeight}px`;
+    // Allow vertical growth if minHeight is set
+    this.contentSizer.style.maxHeight = minHeight > 0 ? '' : `${finalHeight}px`;
+    this.contentSizer.style.minHeight = minHeight > 0 ? `${Math.floor(minHeight)}px` : '0';
   }
 
   /**
@@ -2037,12 +2362,10 @@ export class WeeklySchedule {
       case 'event':
         if (hitResult.eventLayout?.isOverflow) {
           // Zoom to day when clicking overflow indicator
-          // Use the first event from the conflict group as anchor for stable positioning
+          // Pass scrollToShowAll=true to scroll to show all events including the hidden ones
           const overflowEvent = hitResult.event!;
-          const conflictGroup = this.getConflictGroupForOverflow(overflowEvent);
-          const anchorEvent = conflictGroup.length > 0 ? conflictGroup[0] : undefined;
           const day = overflowEvent.day;
-          this.zoomToDay(day, anchorEvent);
+          this.zoomToDay(day, undefined, true);
         } else if (hitResult.event) {
           // Always dispatch click event for regular events (no zoom)
           this.dispatchEvent('schedule-event-click', { event: hitResult.event });
@@ -2178,10 +2501,8 @@ export class WeeklySchedule {
       case 'event':
         if (hitResult.eventLayout?.isOverflow) {
           // Zoom to day when clicking overflow indicator
-          // Use the first event from the conflict group as anchor for stable positioning
-          const conflictGroup = this.getConflictGroupForOverflow(hitResult.event!);
-          const anchorEvent = conflictGroup.length > 0 ? conflictGroup[0] : undefined;
-          this.zoomToDay(hitResult.event!.day, anchorEvent);
+          // Pass scrollToShowAll=true to scroll to show all events including the hidden ones
+          this.zoomToDay(hitResult.event!.day, undefined, true);
         } else if (hitResult.event) {
           // Always dispatch click event for regular events (no zoom)
           this.dispatchEvent('schedule-event-click', { event: hitResult.event });

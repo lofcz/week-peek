@@ -65,10 +65,10 @@ const events: ScheduleEvent[] = [
 const app = document.querySelector<HTMLDivElement>('#app')!;
 
 app.innerHTML = `
-  <div style="padding: 20px; width: min(1280px, 100%);">
-    <h1 style="margin-bottom: 20px; color: #111827;">Weekly Schedule Component</h1>
-    <p style="margin-bottom: 20px; color: #6b7280;">Demo of the weekly schedule component with sample events.</p>
-    <div id="schedule-container" style="width: min(1280px, 100%); height: 600px; margin: 0 auto; box-sizing: border-box; overflow: hidden;"></div>
+  <div class="demo-wrapper">
+    <h1 class="demo-title">Weekly Schedule Component</h1>
+    <p class="demo-description">Demo of the weekly schedule component with sample events.</p>
+    <div id="schedule-container" class="demo-schedule-container"></div>
   </div>
 `;
 

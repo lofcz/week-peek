@@ -63,8 +63,10 @@ export class GridRenderer {
 
   /**
    * Render complete grid (background, lines, headers)
+   * @param layout - The schedule layout to render
+   * @param skipTimeAxis - If true, skip rendering time axis (when using separate DOM time header)
    */
-  render(layout: ScheduleLayout): void {
+  render(layout: ScheduleLayout, skipTimeAxis: boolean = false): void {
     const theme = this.renderer.getTheme();
     
     // 1. Clear and fill background
@@ -83,8 +85,10 @@ export class GridRenderer {
     // 4. Headers are now in DOM - skip rendering
     // this.renderHeaders(layout, theme);
     
-    // 5. Draw time axis
-    this.renderTimeAxis(layout, theme);
+    // 5. Draw time axis (skip if using separate DOM time header)
+    if (!skipTimeAxis) {
+      this.renderTimeAxis(layout, theme);
+    }
   }
 
   /**

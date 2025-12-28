@@ -131,7 +131,6 @@
   position: relative;
   min-width: 0;
   min-height: 0;
-  width: 0; /* Force flex item to respect container width */
   max-width: 100%;
   max-height: 100%;
   overflow-x: hidden;
@@ -151,6 +150,70 @@
 .schedule-scroll-container.scroll-horizontal {
   overflow-x: auto;
   overflow-y: hidden;
+}
+
+.schedule-scroll-container.scroll-both {
+  overflow-x: auto;
+  overflow-y: auto;
+}
+
+/**
+ * Scroll area wrapper - contains optional time header + scroll container
+ * Acts as a flex column container within the main horizontal/vertical flex container
+ */
+.schedule-scroll-area-wrapper {
+  flex: 1 1 0%;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* When time header is present, scroll container fills remaining space after header */
+.schedule-scroll-area-wrapper.has-time-header > .schedule-scroll-container {
+  flex: 1 1 0%;
+  min-height: 0; /* Critical for flex shrinking and enabling overflow */
+  height: 0; /* Let flex determine actual height */
+  max-height: none; /* Override base 100% constraint */
+}
+
+/**
+ * Time header row - fixed at top, scrolls horizontally in sync with content
+ */
+.schedule-time-header-row {
+  flex-shrink: 0;
+  height: 40px;
+  overflow: hidden;
+  background: var(--schedule-header-bg-color, #f3f4f6);
+  border-bottom: 1px solid var(--schedule-grid-line-color, #e5e7eb);
+}
+
+.schedule-time-header-content {
+  display: flex;
+  height: 100%;
+}
+
+.schedule-time-slot-label {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding-left: 8px;
+  font-size: 12px;
+  color: var(--schedule-text-color, #374151);
+  border-left: 1px solid var(--schedule-grid-line-color, #e5e7eb);
+  box-sizing: border-box;
+}
+
+.schedule-time-slot-label:first-child {
+  border-left: none;
+}
+
+/* When time header is present, scroll container fills remaining space */
+.schedule-scroll-area-wrapper.has-time-header .schedule-scroll-container {
+  flex: 1;
+  min-height: 0;
 }
 
 /**

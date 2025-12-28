@@ -119,6 +119,13 @@ export class LayoutEngine {
 
   /**
    * Compute complete layout for the schedule
+   * @param canvasWidth - Width of the canvas in pixels
+   * @param canvasHeight - Height of the canvas in pixels
+   * @param events - Events to lay out
+   * @param devicePixelRatio - Device pixel ratio for HiDPI displays
+   * @param zoomedDay - Currently zoomed day, or null if not zoomed
+   * @param originalVisibleDays - Original visible days before zooming
+   * @param usesSeparateTimeHeader - If true, time header is in DOM (not on canvas), so grid starts at y=0
    */
   computeLayout(
     canvasWidth: number,
@@ -126,7 +133,8 @@ export class LayoutEngine {
     events: ScheduleEvent[],
     devicePixelRatio: number = 1,
     zoomedDay: DayOfWeek | null = null,
-    originalVisibleDays: DayOfWeek[] = []
+    originalVisibleDays: DayOfWeek[] = [],
+    usesSeparateTimeHeader: boolean = false
   ): ScheduleLayout {
     const orientation = this.config.orientation ?? ScheduleOrientation.Vertical;
     const visibleDays = zoomedDay !== null 
@@ -138,8 +146,8 @@ export class LayoutEngine {
     // Calculate grid bounds (excluding headers)
     const intersectionBounds = this.computeIntersectionBounds();
     const dayHeaderBounds = this.computeDayHeaderBounds(canvasWidth, canvasHeight, orientation);
-    const timeAxisBounds = this.computeTimeAxisBounds(canvasWidth, canvasHeight, orientation);
-    const gridBounds = this.computeGridBounds(canvasWidth, canvasHeight, orientation);
+    const timeAxisBounds = this.computeTimeAxisBounds(canvasWidth, canvasHeight, orientation, usesSeparateTimeHeader);
+    const gridBounds = this.computeGridBounds(canvasWidth, canvasHeight, orientation, usesSeparateTimeHeader);
 
     // Calculate day layouts
     const days = this.computeDayLayouts(visibleDays, gridBounds, dayHeaderBounds, orientation, zoomedDay, originalVisibleDays.length > 0 ? originalVisibleDays : (this.config.visibleDays ?? []));
@@ -216,11 +224,13 @@ export class LayoutEngine {
 
   /**
    * Compute time axis bounds
+   * @param usesSeparateTimeHeader - If true, time header is in DOM, not on canvas
    */
   private computeTimeAxisBounds(
     canvasWidth: number,
     canvasHeight: number,
-    orientation: ScheduleOrientation
+    orientation: ScheduleOrientation,
+    usesSeparateTimeHeader: boolean = false
   ): Rect {
     if (orientation === ScheduleOrientation.Vertical) {
       // Time axis is on left, full height (no header)
@@ -232,6 +242,15 @@ export class LayoutEngine {
       };
     } else {
       // Time axis is at top, full width (no left column for days)
+      // When using separate DOM time header, return zero-height bounds
+      if (usesSeparateTimeHeader) {
+        return {
+          x: 0,
+          y: 0,
+          width: canvasWidth,
+          height: 0,
+        };
+      }
       return {
         x: 0,
         y: 0,
@@ -243,11 +262,13 @@ export class LayoutEngine {
 
   /**
    * Compute main grid bounds (where events are rendered)
+   * @param usesSeparateTimeHeader - If true, time header is in DOM, so grid starts at y=0
    */
   private computeGridBounds(
     canvasWidth: number,
     canvasHeight: number,
-    orientation: ScheduleOrientation
+    orientation: ScheduleOrientation,
+    usesSeparateTimeHeader: boolean = false
   ): Rect {
     if (orientation === ScheduleOrientation.Vertical) {
       // Grid uses full canvas height (time axis stays on left)
@@ -259,6 +280,15 @@ export class LayoutEngine {
       };
     } else {
       // Grid uses full canvas width (no left column for days)
+      // When using separate DOM time header, grid starts at top (y=0)
+      if (usesSeparateTimeHeader) {
+        return {
+          x: 0,
+          y: 0,
+          width: canvasWidth,
+          height: canvasHeight,
+        };
+      }
       return {
         x: 0,
         y: this.dimensions.headerSize,
