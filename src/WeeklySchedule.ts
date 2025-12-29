@@ -440,6 +440,11 @@ export class WeeklySchedule {
 
     this.allEvents = [...events];
     this.applyFilter();
+    
+    // Recalculate content size (especially important for mobile mode height)
+    this.calculateContentSize();
+    this.renderer.resize(this.contentWidth, this.contentHeight);
+    
     this.invalidateLayout();
     this.scheduleRender();
     
@@ -461,6 +466,11 @@ export class WeeklySchedule {
 
     this.currentFilter = predicate;
     this.applyFilter();
+    
+    // Recalculate content size (especially important for mobile mode height)
+    this.calculateContentSize();
+    this.renderer.resize(this.contentWidth, this.contentHeight);
+    
     this.invalidateLayout();
     this.scheduleRender();
     
@@ -473,6 +483,11 @@ export class WeeklySchedule {
   clearFilter(): Result<void, Error> {
     this.currentFilter = null;
     this.events = [...this.allEvents];
+    
+    // Recalculate content size (especially important for mobile mode height)
+    this.calculateContentSize();
+    this.renderer.resize(this.contentWidth, this.contentHeight);
+    
     this.invalidateLayout();
     this.scheduleRender();
     
