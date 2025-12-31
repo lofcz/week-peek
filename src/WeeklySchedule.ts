@@ -2451,7 +2451,10 @@ export class WeeklySchedule {
    */
   private handleTouchStart(e: TouchEvent): void {
     if (e.touches.length === 1) {
-      e.preventDefault();
+      // In mobile mode, allow native scrolling by not preventing default
+      if (!this.isMobileMode) {
+        e.preventDefault();
+      }
       const touch = e.touches[0];
       const point = this.renderer.eventToCanvasPoint(touch);
       const adjustedPoint = this.adjustPointForScroll(point);
@@ -2466,7 +2469,10 @@ export class WeeklySchedule {
    */
   private handleTouchMove(e: TouchEvent): void {
     if (e.touches.length === 1) {
-      e.preventDefault();
+      // In mobile mode, allow native scrolling by not preventing default
+      if (!this.isMobileMode) {
+        e.preventDefault();
+      }
       const touch = e.touches[0];
       const point = this.renderer.eventToCanvasPoint(touch);
       const adjustedPoint = this.adjustPointForScroll(point);
